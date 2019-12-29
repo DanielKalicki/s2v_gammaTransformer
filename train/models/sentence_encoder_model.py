@@ -1,4 +1,5 @@
 import tensorflow as tf
+from tensorflow.keras.layers import Dropout, Dense
 from nlp_blocks.transformer.transformer import (create_mha_pool,
                                                 create_gated_transformer)
 from nlp_blocks.transformer.funcs import gelu
@@ -31,9 +32,8 @@ class SentenceEncoderModel(tf.keras.Model):
 
         self.s2v_dim = self.config['s2v_dim']
 
-        self.input_drop = tf.keras.layers.Dropout(self.config
-                                                  ['sentence_encoder']
-                                                  ['input_drop'])
+        self.input_drop = Dropout(self.config['sentence_encoder']
+                                             ['input_drop'])
 
         gtr_params = {
             'max_len': max_sent_len,
@@ -53,8 +53,6 @@ class SentenceEncoderModel(tf.keras.Model):
             'gate_type': (self.config['sentence_encoder']['transformer']
                                      ['gate_type']),
         }
-        print('gtr_params')
-        print(gtr_params)
         self.gtr = create_gated_transformer(**gtr_params)
 
         if self.pooling_method == 'mha':
@@ -76,22 +74,29 @@ class SentenceEncoderModel(tf.keras.Model):
                 'output_dim': (self.config['sentence_encoder']['pooling']
                                           ['mha']['output_dim']),
             }
-            print('mha_params')
-            print(mha_params)
             self.mha_pool = create_mha_pool(**mha_params)
 
         elif self.pooling_method == 'dense':
-            # TODO
-            self.sent_pool_l1 = tf.keras.layers.Dense(self.s2v_dim,
-                                                      activation='sigmoid',
-                                                      use_bias=True)
-            self.sent_pool_l2 = tf.keras.layers.Dense(self.s2v_dim,
-                                                      activation=None,
-                                                      use_bias=True)
+            self.dense_pool_layer_cnt = (self.config['sentence_encoder']
+                                                    ['pooling']
+                                                    ['dense']['layer_cnt'])
+            self.dense_pool_act = (self.config['sentence_encoder']['pooling']
+                                              ['dense']['hidden_activation'])
+            self.dense_pool_dim = (self.config['sentence_encoder']['pooling']
+                                              ['dense']['inner_dim'])
+            self.dense_pool_layers = []
+            for i in range(self.dense_pool_layer_cnt):
+                dense_activation = [self.dense_pool_act
+                                    if i != (self.dense_pool_layers_cnt-1)
+                                    else None]
+                self.sent_pool_layers.append(Dense(self.self.dense_pool_dim,
+                                                   use_bias=False,
+                                                   activation=dense_activation,
+                                                   name='dense_pool_{}'
+                                                        .format(i)))
         if self.pool_projection:
-            self.s2v_projection = tf.keras.layers.Dense(self.s2v_dim,
-                                                        activation=None,
-                                                        use_bias=False)
+            self.s2v_projection = Dense(self.s2v_dim, activation=None,
+                                        use_bias=False)
 
     def call(self, sentence, sentence_mask, sentence_transformer_mask):
         """
@@ -126,7 +131,9 @@ class SentenceEncoderModel(tf.keras.Model):
         if self.pooling_method == 'mha':
             sent_pool = self.mha_pool([sent_out, sent_tr_mask])
         elif self.pooling_method == 'dense':
-            sent_pool = sent_out  # TODO
+            sent_pool = sent_out
+            for i in range(self.dense_pool_layer_cnt):
+                sent_pool = self.dense_pool_layers[i](sent_pool)
 
         # ---------------------------------------------------------------------
         # Activation function before Pool
@@ -144,7 +151,7 @@ class SentenceEncoderModel(tf.keras.Model):
             s2v_pool = tf.reduce_max(sent_pool + (1-sent_mask)*-1e5, axis=1)
 
         # ---------------------------------------------------------------------
-        # Pool projection to s2v dimmentions
+        # Pool projection to s2v dimension
         # ---------------------------------------------------------------------
         if self.pool_projection:
             s2v = self.s2v_projection(s2v_pool)

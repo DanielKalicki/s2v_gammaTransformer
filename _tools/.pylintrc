@@ -1,0 +1,4 @@
+[MESSAGES CONTROL]
+disable=bad-continuation,import-error,too-few-public-methods,too-many-instance-attributes,maybe-no-member
+[BASIC]
+good-names=i,e,x,y

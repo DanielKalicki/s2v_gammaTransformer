@@ -15,7 +15,7 @@ config = {
     'batch_size': 16,
     'max_sent_len': 64,
     'word_edim': 1024,
-    's2v_dim': 4096,
+    's2v_dim': 6144,
 
     'sentence_encoder': {
         'input_drop': 0.0,
@@ -33,20 +33,25 @@ config = {
                                            # 'Wg(x)*x + y'
                                            # 'Wg(x)*x + (1-Wg(x))*y'
             # TODO Mha with FFN
+            'mha_modification': {
+                'inner_dim': 1024,
+                'activation_after_mha': 'gelu',
+                'output_projection': True
+            }
         },
         'pooling': {
             'pooling_method': 'mha',  # ['mha', 'dense']
             # 'dense': {
             #     'layer_cnt': 1,
-            #     'hidden_activation': 'gelu'
-            #     'output_dim': 4096,
+            #     'hidden_activation': 'gelu'  # last layers has no activation
+            #     'inner_dim': 4096,
             # }
             'mha': {
-                'inner_dim': 4096,
-                'num_heads': 32,
+                'inner_dim': 6144,
+                'num_heads': 48,
                 'attention_dropout': 0.0,
                 'output_projection': False,
-                'output_dim': 4096,  # used only if output_projection = True
+                'output_dim': 6144,  # used only if output_projection = True
                 # TODO Non linearity in v (2 layers with gelu)
             },
             'pooling_activation': None,  # activation function used before pool
@@ -67,17 +72,17 @@ config = {
     'training': {
         'optimizer': 'Nadam',
         'clipnorm': 1.,
-        'lr': ([4e-5]*5 + [2e-5]*6 + [1e-5]*5 + [5e-6]*6 + [2e-6]*5 + [1e-6]*4 + [5e-7]*3
-               + [2e-7]*3 + [1e-7]*3),
+        'lr': ([4e-5]*5 + [2e-5]*6 + [1e-5]*5 + [5e-6]*6 + [2e-6]*5 + [1e-6]*4
+               + [5e-7]*3 + [2e-7]*3 + [1e-7]*3),
         'label_smoothing': 0.2,
         'label_noise': 0.0
     }
 }
 
-config['name'] = '_bLoneT' + str(config['batch_size']) + \
-                 '_4xTr_s2v4096d_TrMhaWithFfn1LxIn1MhaX1_mhaIntern4k' + \
+config['name'] = '_bL' + str(config['batch_size']) + \
+                 '_4xTr_s2v6144d_TrMhaWithGelu_mhaIntern6k' + \
                  '_noCProjAttnInMhaPool_gDenseXY' + \
-                 '_noS2vDense_MhaPoolVnLinearX1_snlifullfixShuffle_diffLrSch5'
+                 '_noS2vDense_MhaPoolVnLinearX1h48_snlifullfixShuffle_diffLrSch5'
 
 # sent2vec_GatedModifiedMhaTransformer
 # sent2vec_γTransformer
@@ -85,6 +90,8 @@ config['name'] = '_bLoneT' + str(config['batch_size']) + \
 # -----------------------------------------------------------------------------
 # Save model files
 # -----------------------------------------------------------------------------
+if not os.path.exists('train/logs'):
+    os.mkdir('train/logs')
 os.mkdir('train/logs/'+config['name'])
 shutil.copytree('train/batchers', 'train/logs/' + config['name'] + '/batchers')
 shutil.copytree('train/models', 'train/logs/' + config['name'] + '/models')
@@ -125,7 +132,6 @@ sent2_s2v = sentence_encoder_model(input_sentence2, input_sentence2_mask,
 # -----------------------------------------------------------------------------
 # Classifier
 # -----------------------------------------------------------------------------
-# paws_matching_model = PawsClassifierModel(config)
 nli_matching_model = NliClassifierModel(config)
 nli_predictions = nli_matching_model(sent1_s2v, sent2_s2v)
 
@@ -134,11 +140,6 @@ model = tf.keras.models.Model(inputs=[input_sentence1, input_sentence1_mask,
                                       input_sentence2, input_sentence2_mask,
                                       input_sentence2_transformer_mask],
                               outputs=[nli_predictions])
-
-# Restore previous model
-# model_name = 'bLoneT16_test10_4xTr_s2v4096d_TrMhaWithFfn_' + \
-#             'mhaIntern2kOut4k_noS2vDense_snlifull'
-# model.load_weights("train/save/"+model_name+'/model')
 
 # -----------------------------------------------------------------------------
 # Optimizer

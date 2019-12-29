@@ -33,9 +33,9 @@ class SnliBatch(tf.keras.utils.Sequence):
 
     def _batch_file_does_exist(self):
         """
-        Checks if the batch file is already existing
-        :return:    True - batch file exist
-                    False - batch file does not exist
+        Checks if the batch file was already created.
+        :return:    True - batch file does not exist.
+                    False - batch file exist.
         """
         batch_files_exist = True
         datasets_files = os.listdir(self.datasets_dir)
@@ -273,29 +273,7 @@ def test():
         'batch_size': 2,
         'max_sent_cnt': 6,
         'max_sent_len': 64,
-        'word_edim': 1024,
-
-        'doc_encoder': {
-            'num_layers': 2,
-            'sent_dim': 1536,
-            'num_heads': 8,
-            'ffn_dim': 1536 * 2,
-            'dropout': 0.0
-        },
-
-        'question_encoder': {
-            'hidden_layer_cnt': 1,
-            'dropout': 0.0
-        },
-
-        'matching_network': {
-            'hidden_dim': 512,
-            'hidden_layer_cnt': 1,
-            'dropout': 0.0
-        },
-
-        'lr': 1e-4,
-        'label_smoothing': 0.2
+        'word_edim': 1024
     })
     batch_x, batch_y = batcher.__getitem__(1)
     print(batch_x['sentences'][0])

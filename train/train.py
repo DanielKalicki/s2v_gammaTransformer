@@ -7,85 +7,15 @@ from models.sentence_encoder_model import SentenceEncoderModel
 from models.nli_matching_model import NliClassifierModel
 from tensorflow.keras.callbacks import (TensorBoard, LearningRateScheduler,
                                         ModelCheckpoint)
+from configs import configs
+import sys
 
 # -----------------------------------------------------------------------------
 # Model configuration
 # -----------------------------------------------------------------------------
-config = {
-    'batch_size': 16,
-    'max_sent_len': 64,
-    'word_edim': 1024,
-    's2v_dim': 6144,
 
-    'sentence_encoder': {
-        'input_drop': 0.0,
-        'transformer': {
-            'word_dim': 1024,
-            'num_layers': 4,
-            'num_heads': 16,
-            'ffn_dim': 4*1024,
-            'residual_dropout': 0.0,
-            'attention_dropout': 0.0,
-            'gate_type': 'Wg(x,y)*y + x',  # 'None' - Residual connections
-                                           # 'Wg(x)*y + x'
-                                           # 'Wg(x,y)*y + x'
-                                           # 'Wg(y)*tanh(Ug(y)) + x'
-                                           # 'Wg(x)*x + y'
-                                           # 'Wg(x)*x + (1-Wg(x))*y'
-            # TODO Mha with FFN
-            'mha_modification': {
-                'inner_dim': 1024,
-                'activation_after_mha': 'gelu',
-                'output_projection': True
-            }
-        },
-        'pooling': {
-            'pooling_method': 'mha',  # ['mha', 'dense']
-            # 'dense': {
-            #     'layer_cnt': 1,
-            #     'hidden_activation': 'gelu'  # last layers has no activation
-            #     'inner_dim': 4096,
-            # }
-            'mha': {
-                'inner_dim': 6144,
-                'num_heads': 48,
-                'attention_dropout': 0.0,
-                'output_projection': False,
-                'output_dim': 6144,  # used only if output_projection = True
-                # TODO Non linearity in v (2 layers with gelu)
-            },
-            'pooling_activation': None,  # activation function used before pool
-            'pooling_function': 'mean',  # ['mean', 'max']
-        },
-        'pool_projection': False,  # if True pooling output will be projected
-                                   #    to s2v_dim
-    },
-
-    'classifier_network': {
-        'hidden_dim': 512,
-        'hidden_layer_cnt': 1,
-        'dropout': 0.0,
-        'hidden_activation': 'gelu',
-        'prediction_activation': tf.keras.activations.softmax,
-    },
-
-    'training': {
-        'optimizer': 'Nadam',
-        'clipnorm': 1.,
-        'lr': ([4e-5]*5 + [2e-5]*6 + [1e-5]*5 + [5e-6]*6 + [2e-6]*5 + [1e-6]*4
-               + [5e-7]*3 + [2e-7]*3 + [1e-7]*3),
-        'label_smoothing': 0.2,
-        'label_noise': 0.0
-    }
-}
-
-config['name'] = '_bL' + str(config['batch_size']) + \
-                 '_4xTr_s2v6144d_TrMhaWithGelu_mhaIntern6k' + \
-                 '_noCProjAttnInMhaPool_gDenseXY' + \
-                 '_noS2vDense_MhaPoolVnLinearX1h48_snlifullfixShuffle_diffLrSch5'
-
-# sent2vec_GatedModifiedMhaTransformer
-# sent2vec_γTransformer
+print(int(sys.argv[1]))
+config = configs[int(sys.argv[1])]
 
 # -----------------------------------------------------------------------------
 # Save model files
@@ -98,6 +28,8 @@ shutil.copytree('train/models', 'train/logs/' + config['name'] + '/models')
 shutil.copytree('train/nlp_blocks',
                 'train/logs/' + config['name'] + '/nlp_blocks')
 shutil.copyfile('train/train.py', 'train/logs/' + config['name'] + '/train.py')
+shutil.copyfile('train/configs.py', 'train/logs/' + config['name'] +
+                '/configs.py')
 
 # -----------------------------------------------------------------------------
 # Model inputs

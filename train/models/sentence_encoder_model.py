@@ -52,6 +52,9 @@ class SentenceEncoderModel(tf.keras.Model):
             'use_attn_mask': True,
             'gate_type': (self.config['sentence_encoder']['transformer']
                                      ['gate_type']),
+            'mha_modifications': (self.config['sentence_encoder']
+                                             ['transformer']
+                                             ['mha_modifications']),
         }
         self.gtr = create_gated_transformer(**gtr_params)
 
@@ -73,6 +76,10 @@ class SentenceEncoderModel(tf.keras.Model):
                                                  ['mha']['output_projection']),
                 'output_dim': (self.config['sentence_encoder']['pooling']
                                           ['mha']['output_dim']),
+                'input_ffn': (self.config['sentence_encoder']['pooling']
+                                         ['mha']['input_ffn']),
+                'input_ffn_dim': (self.config['sentence_encoder']['pooling']
+                                             ['mha']['input_ffn_dim']),
             }
             self.mha_pool = create_mha_pool(**mha_params)
 
@@ -86,14 +93,14 @@ class SentenceEncoderModel(tf.keras.Model):
                                               ['dense']['inner_dim'])
             self.dense_pool_layers = []
             for i in range(self.dense_pool_layer_cnt):
-                dense_activation = [self.dense_pool_act
-                                    if i != (self.dense_pool_layers_cnt-1)
-                                    else None]
-                self.sent_pool_layers.append(Dense(self.self.dense_pool_dim,
-                                                   use_bias=False,
-                                                   activation=dense_activation,
-                                                   name='dense_pool_{}'
-                                                        .format(i)))
+                dense_act = (self.dense_pool_act
+                             if i != (self.dense_pool_layer_cnt-1)
+                             else None)
+                self.dense_pool_layers.append(Dense(self.dense_pool_dim,
+                                                    use_bias=False,
+                                                    activation=dense_act,
+                                                    name='dense_pool_{}'
+                                                         .format(i)))
         if self.pool_projection:
             self.s2v_projection = Dense(self.s2v_dim, activation=None,
                                         use_bias=False)

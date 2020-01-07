@@ -1,5 +1,5 @@
 # s2v_gammaTransformer
-This is implementation of Gated Modified Multihead Attention Transformer used for compressing sentences to fix lenght vectors.
+This is implementation of Gated Modified Multihead Attention Transformer used for compressing sentences to fix length vectors.
 <div align="center">
 	<img src="https://raw.githubusercontent.com/DanielKalicki/s2v_gammaTransformer/master/.metas/s2v_diagram.png" width="40%">
 </div>

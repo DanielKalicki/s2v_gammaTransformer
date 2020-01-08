@@ -1,4 +1,5 @@
 import tensorflow as tf
+import copy
 
 default_config = {
     'batch_size': 16,
@@ -57,6 +58,7 @@ default_config = {
         'hidden_dim': 512,
         'hidden_layer_cnt': 1,
         'dropout': 0.0,
+        'hidden_layer_norm': False,
         'hidden_activation': 'gelu',
         'prediction_activation': tf.keras.activations.softmax,
     },
@@ -71,11 +73,56 @@ default_config = {
     }
 }
 
-configs = default_config*100
+configs = []
+for i in range(100):
+    configs.append(copy.deepcopy(default_config))
 
-#       Config 10
-configs[10]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
-configs[10]['classifier_network']['hidden_activation'] = \
+# -------------------------------- Config 00 ---------------------------------
+configs[0]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
+configs[0]['classifier_network']['hidden_activation'] = \
     tf.keras.activations.tanh
-configs[10]['name'] = '_bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
+configs[0]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
     'MhaPoolVnLin_MaxPool_4096d_Snli_TanhClass'
+# -------------------------------- Config 01 ---------------------------------
+# hardcoded code change
+configs[1]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
+configs[1]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
+    'MhaPoolVnLin_MaxPool_4096d_Snli_TrBias'
+# -------------------------------- Config 02 ---------------------------------
+configs[2]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
+configs[2]['classifier_network']['dropout'] = 0.1
+configs[2]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
+    'MhaPoolVnLin_MaxPool_4096d_Snli_ClassDrop.1'
+# -------------------------------- Config 03 ---------------------------------
+configs[3]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
+configs[3]['classifier_network']['hidden_layer_norm'] = True
+configs[3]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
+    'MhaPoolVnLin_MaxPool_4096d_Snli_LnClass'
+# -------------------------------- Config 04 ---------------------------------
+configs[4]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
+configs[4]['classifier_network']['hidden_activation'] = \
+    tf.keras.activations.relu
+configs[4]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
+    'MhaPoolVnLin_MaxPool_4096d_Snli_ReluClass'
+# -------------------------------- Config 05 ---------------------------------
+configs[5]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
+configs[5]['sentence_encoder']['transformer']['num_layers'] = 3
+configs[5]['name'] = 'bL16_3xTr_MhaFfn_g(x,y)*y+x_' + \
+    'MhaPoolVnLin_MaxPool_4096d_Snli'
+# -------------------------------- Config 06 ---------------------------------
+configs[6]['sentence_encoder']['pooling']['mha']['input_ffn'] = ''
+configs[6]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
+    'MhaPool_MaxPool_4096d_Snli'
+# -------------------------------- Config 07 ---------------------------------
+configs[7]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'q'
+configs[7]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
+    'MhaPoolQnLin_MaxPool_4096d_Snli'
+# -------------------------------- Config 08 ---------------------------------
+configs[8]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'k'
+configs[8]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
+    'MhaPoolKnLin_MaxPool_4096d_Snli'
+# -------------------------------- Config 09 ---------------------------------
+configs[9]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
+configs[9]['sentence_encoder']['pooling']['mha']['input_ffn_dim'] = 4096*2
+configs[9]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
+    'MhaPoolVnLin8k_MaxPool_4096d_Snli'

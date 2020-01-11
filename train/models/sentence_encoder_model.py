@@ -61,7 +61,8 @@ class SentenceEncoderModel(tf.keras.Model):
         if self.pooling_method == 'mha':
             mha_params = {
                 'max_len': max_sent_len,
-                'num_layers': 1,
+                'num_layers': (self.config['sentence_encoder']['pooling']
+                                         ['mha']['num_layers']),
                 'num_heads': (self.config['sentence_encoder']['pooling']
                                          ['mha']['num_heads']),
                 'attention_dropout': (self.config['sentence_encoder']
@@ -80,6 +81,9 @@ class SentenceEncoderModel(tf.keras.Model):
                                          ['mha']['input_ffn']),
                 'input_ffn_dim': (self.config['sentence_encoder']['pooling']
                                              ['mha']['input_ffn_dim']),
+                'use_dense_connection': (self.config['sentence_encoder']
+                                                    ['pooling']['mha']
+                                                    ['use_dense_connection']),
             }
             self.mha_pool = create_mha_pool(**mha_params)
 
@@ -156,6 +160,10 @@ class SentenceEncoderModel(tf.keras.Model):
                        / tf.reduce_sum(sent_mask, axis=1)
         elif self.pooling_function == 'max':
             s2v_pool = tf.reduce_max(sent_pool + (1-sent_mask)*-1e5, axis=1)
+        elif self.pooling_function == 'l2':
+            s2v_pool = tf.math.sqrt(tf.reduce_sum(tf.math.square(sent_pool)
+                                                  * sent_mask, axis=1)
+                                    / tf.reduce_sum(sent_mask, axis=1))
 
         # ---------------------------------------------------------------------
         # Pool projection to s2v dimension

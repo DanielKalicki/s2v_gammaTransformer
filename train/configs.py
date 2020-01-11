@@ -28,7 +28,7 @@ default_config = {
                 'hidden_layer': True,
                 'hidden_dim': 1024,  # used only if hidden_layer = True
                 'hidden_activation': 'gelu',  # used only if hidden_layer = True
-                'output_projection': True
+                'output_projection': True,
             }
         },
         'pooling': {
@@ -40,15 +40,17 @@ default_config = {
             # }
             'mha': {
                 'inner_dim': 4096,
+                'num_layers': 1,
                 'num_heads': 32,
                 'attention_dropout': 0.0,
                 'output_projection': False,
                 'output_dim': 4096,  # used only if output_projection = True
-                'input_ffn': None,  # None, q, k, v or any combination
-                'input_ffn_dim': 4096  # used only if input_ffn != None
+                'input_ffn': '',  # None, q, k, v or any combination
+                'input_ffn_dim': 4096,  # used only if input_ffn != None
+                'use_dense_connection': False,
             },
             'pooling_activation': None,  # activation function used before pool
-            'pooling_function': 'max',  # ['mean', 'max']
+            'pooling_function': 'max',  # ['mean', 'max', 'l2']
         },
         'pool_projection': False,  # if True pooling output will be projected
                                    #    to s2v_dim
@@ -126,3 +128,52 @@ configs[9]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
 configs[9]['sentence_encoder']['pooling']['mha']['input_ffn_dim'] = 4096*2
 configs[9]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
     'MhaPoolVnLin8k_MaxPool_4096d_Snli'
+# -------------------------------- Config 10 ---------------------------------
+configs[10]['sentence_encoder']['pooling']['mha']['num_layers'] = 2
+configs[10]['sentence_encoder']['pooling']['mha']['use_dense_connection'] = \
+    True
+configs[10]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
+    'MhaPool2LayersDense_MaxPool_4096d_Snli'
+# -------------------------------- Config 11 ---------------------------------
+configs[11]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
+configs[11]['sentence_encoder']['pooling']['pooling_activation'] = \
+    tf.keras.activations.tanh
+configs[11]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
+    'MhaPoolVnLin_TanhB4Pool_MaxPool_4096d_Snli'
+# -------------------------------- Config 12 ---------------------------------
+configs[12]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'mha'
+configs[12]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
+    'MhaPoolVmha_MaxPool_4096d_Snli'
+# -------------------------------- Config 13 ---------------------------------
+configs[13]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
+configs[13]['sentence_encoder']['pooling']['pooling_function'] = 'l2'
+configs[13]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
+    'MhaPoolVnLin_L2Pool_4096d_Snli'
+# -------------------------------- Config 14 ---------------------------------
+configs[14]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
+(configs[14]['sentence_encoder']['transformer']['mha_modifications']
+            ['hidden_dim']) = 4096
+configs[14]['name'] = 'bL16_4xTr_MhaFfn4096h_g(x,y)*y+x_' + \
+    'MhaPoolVnLin_MaxPool_4096d_Snli'
+# -------------------------------- Config 15 ---------------------------------
+configs[15]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
+(configs[15]['sentence_encoder']['transformer']['mha_modifications']
+            ['hidden_layer']) = False
+(configs[15]['sentence_encoder']['transformer']['mha_modifications']
+            ['output_projection']) = False
+configs[15]['name'] = 'bL16_4xTr_MhaNoOutProj_g(x,y)*y+x_' + \
+    'MhaPoolVnLin_MaxPool_4096d_Snli'
+# -------------------------------- Config 16 ---------------------------------
+configs[16]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
+(configs[16]['sentence_encoder']['transformer']['mha_modifications']
+            ['activation_after_mha']) = 'gelu'
+(configs[16]['sentence_encoder']['transformer']['mha_modifications']
+            ['hidden_layer']) = False
+configs[16]['name'] = 'bL16_4xTr_MhaGeluOutProj_g(x,y)*y+x_' + \
+    'MhaPoolVnLin_MaxPool_4096d_Snli'
+# -------------------------------- Config 17 ---------------------------------
+configs[17]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
+(configs[17]['sentence_encoder']['transformer']['mha_modifications']
+            ['hidden_layer']) = False
+configs[17]['name'] = 'bL16_4xTr_MhaStandard_g(x,y)*y+x_' + \
+    'MhaPoolVnLin_MaxPool_4096d_Snli'

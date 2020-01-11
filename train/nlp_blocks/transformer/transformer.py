@@ -296,7 +296,8 @@ class MultiHeadSelfAttentionPool:
                              name='layer_{}/c_att_q'.format(layer_id))
         self.c_att_k = Dense(n_state, use_bias=False, activation=None,
                              name='layer_{}/c_att_k'.format(layer_id))
-        self.c_att_v = Dense(n_state, use_bias=False, activation=None,
+        self.c_att_v = Dense(n_state if 'mha' not in self.input_ffn
+                             else 3*n_state, use_bias=False, activation=None,
                              name='layer_{}/c_att_v'.format(layer_id))
 
         if 'q' in input_ffn:
@@ -311,6 +312,12 @@ class MultiHeadSelfAttentionPool:
             self.c_att_v2 = Dense(input_ffn_dim, use_bias=False,
                                   activation=gelu,
                                   name='layer_{}/c_att_v2'.format(layer_id))
+        if 'mha' in input_ffn:
+            self.attn_v2 = MultiHeadAttention(n_head, n_state,
+                                              attention_dropout,
+                                              use_attn_mask, neg_inf,
+                                              name='layer_{}/v_self_attention'
+                                                   .format(layer_id))
 
         self.attn = MultiHeadAttention(n_head, n_state, attention_dropout,
                                        use_attn_mask, neg_inf,
@@ -325,9 +332,12 @@ class MultiHeadSelfAttentionPool:
         q = self.c_att_q2(x) if 'q' in self.input_ffn else x
         k = self.c_att_k2(x) if 'k' in self.input_ffn else x
         v = self.c_att_v2(x) if 'v' in self.input_ffn else x
+        v = self.attn_v2([self.c_att_v(v), mask]) if 'mha' in \
+            self.input_ffn else v
         output = tf.keras.backend.concatenate([self.c_att_q(q),
                                                self.c_att_k(k),
-                                               self.c_att_v(v)],
+                                               self.c_att_v(v) if 'mha' not in
+                                               self.input_ffn else v],
                                               axis=2)
 
         output = self.attn(output) if mask is None else \
@@ -360,7 +370,8 @@ def create_mha_pool(embedding_dim: int = 768, max_len: int = 512,
                     attention_dropout: float = 0.1, use_attn_mask: bool = True,
                     neg_inf: float = -1e9, internal_dim: int = 768,
                     output_projection: bool = False, output_dim: int = 768,
-                    input_ffn=None, input_ffn_dim=768
+                    input_ffn=None, input_ffn_dim=768,
+                    use_dense_connection: bool = False
                     ) -> tensorflow.keras.Model:
     input_ = Input(batch_shape=(None, max_len, embedding_dim),
                    name='input', dtype='float32')
@@ -370,9 +381,14 @@ def create_mha_pool(embedding_dim: int = 768, max_len: int = 512,
     inputs = [input_]
     x = input_
     for i in range(num_layers):
-        x = MhaPoolLayer(internal_dim, num_heads, attention_dropout,
-                         use_attn_mask, i, neg_inf, output_projection,
-                         output_dim, input_ffn, input_ffn_dim)(x, attn_mask)
+        out = MhaPoolLayer(internal_dim, num_heads, attention_dropout,
+                           use_attn_mask, i, neg_inf, output_projection,
+                           output_dim, input_ffn, input_ffn_dim)(x, attn_mask)
+        if use_dense_connection:
+            x = tf.keras.backend.concatenate([x, out], axis=2)
+        else:
+            x = out
+    x = out
     if use_attn_mask:
         inputs.append(attn_mask)
     return tensorflow.keras.Model(inputs=inputs, outputs=[x], name='MhaPool')

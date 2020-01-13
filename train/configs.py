@@ -28,6 +28,8 @@ default_config = {
                 'hidden_layer': True,
                 'hidden_dim': 1024,  # used only if hidden_layer = True
                 'hidden_activation': 'gelu',  # used only if hidden_layer = True
+                'output_mha': False,
+                'output_mha_num_heads': 1,  # used only if output_mha = True
                 'output_projection': True,
             }
         },
@@ -47,10 +49,11 @@ default_config = {
                 'output_dim': 4096,  # used only if output_projection = True
                 'input_ffn': '',  # None, q, k, v or any combination
                 'input_ffn_dim': 4096,  # used only if input_ffn != None
+                'gated_ffn': False,
                 'use_dense_connection': False,
             },
             'pooling_activation': None,  # activation function used before pool
-            'pooling_function': 'max',  # ['mean', 'max', 'l2']
+            'pooling_function': 'max',  # ['mean', 'max', 'l2', 'mean_max']
         },
         'pool_projection': False,  # if True pooling output will be projected
                                    #    to s2v_dim
@@ -66,6 +69,7 @@ default_config = {
     },
 
     'training': {
+        'loss_mean0_s2v': False,
         'optimizer': 'Nadam',
         'clipnorm': 1.,
         'lr': ([4e-5]*5 + [2e-5]*6 + [1e-5]*5 + [5e-6]*6 + [2e-6]*3 + [1e-6]*3
@@ -177,3 +181,31 @@ configs[17]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
             ['hidden_layer']) = False
 configs[17]['name'] = 'bL16_4xTr_MhaStandard_g(x,y)*y+x_' + \
     'MhaPoolVnLin_MaxPool_4096d_Snli'
+# -------------------------------- Config 18 ---------------------------------
+configs[18]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
+configs[18]['training']['loss_mean0_s2v'] = True
+configs[18]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
+    'MhaPoolVnLin_MaxPool_4096d_Snli_s2vLoss'
+# -------------------------------- Config 19 ---------------------------------
+configs[19]['sentence_encoder']['pooling']['mha']['inner_dim'] = 2048
+configs[19]['sentence_encoder']['pooling']['mha']['num_heads'] = 16
+configs[19]['sentence_encoder']['pooling']['mha']['output_dim'] = 2048
+configs[19]['sentence_encoder']['pooling']['mha']['input_ffn_dim'] = 2048
+configs[19]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
+configs[13]['sentence_encoder']['pooling']['pooling_function'] = 'mean_max'
+configs[19]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
+    'MhaPoolVnLin_MeanMaxPool_4096d_Snli'
+# -------------------------------- Config 20 ---------------------------------
+configs[20]['sentence_encoder']['pooling']['mha']['gated_ffn'] = True
+configs[20]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
+    'MhaPoolGatedFfn_MaxPool_4096d_Snli'
+# -------------------------------- Config 21 ---------------------------------
+configs[21]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
+configs[21]['sentence_encoder']['pooling']['mha']['num_heads'] = 64
+configs[21]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
+    'MhaPoolVnLin64h_MaxPool_4096d_Snli'
+# -------------------------------- Config 22 ---------------------------------
+configs[22]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
+configs[22]['sentence_encoder']['pooling']['mha']['num_heads'] = 1
+configs[22]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
+    'MhaPoolVnLin1h_MaxPool_4096d_Snli'

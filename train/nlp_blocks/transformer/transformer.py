@@ -41,9 +41,10 @@ class MultiHeadSelfAttention:
         self.out_proj = False
         self.hidd_layer = False
         self.hidd_act = False
+        self.out_mha = False
 
         mha_dim = n_state
-        if ('inner_dim' in modifications):
+        if 'inner_dim' in modifications:
             mha_dim = modifications['inner_dim']
 
         self.c_attn = Dense(3 * mha_dim, use_bias=False,
@@ -61,6 +62,7 @@ class MultiHeadSelfAttention:
                 self.activation = gelu
             else:
                 self.activation = modifications['activation_after_mha']
+
         if ('hidden_layer' in modifications) \
            and (modifications['hidden_layer']):
             self.hidd_layer = True
@@ -75,6 +77,20 @@ class MultiHeadSelfAttention:
                     self.h_activation = gelu
                 else:
                     self.h_activation = modifications['activation_after_mha']
+
+        if ('output_mha' in modifications) \
+           and (modifications['output_mha']):
+            self.out_mha = True
+            self.c_out_attn = Dense(3 * n_state, use_bias=False,
+                                    name='layer_{}/c_out_attn'
+                                         .format(layer_id))
+            self.out_attn = MultiHeadAttention((modifications
+                                                ['output_mha_num_heads']),
+                                               mha_dim, attention_dropout,
+                                               use_attn_mask, neg_inf,
+                                               name='layer_{}/out_attn'
+                                                    .format(layer_id))
+
         if ('output_projection' in modifications) \
            and (modifications['output_projection']):
             self.out_proj = True
@@ -86,12 +102,20 @@ class MultiHeadSelfAttention:
         output = self.c_attn(x)
         output = self.attn(output) if mask is None else \
             self.attn([output, mask])
+
         if self.act_after_mha:
             output = self.activation(output)
+
         if self.hidd_layer:
             output = self.c_attn_hidd(output)
             if self.hidd_act:
                 output = self.h_activation(output)
+
+        if self.out_mha:
+            output = self.c_out_attn(output)
+            output = self.out_attn(output) if mask is None else \
+                self.out_attn([output, mask])
+
         if self.out_proj:
             output = self.c_attn_proj(output)
         return output
@@ -353,16 +377,27 @@ class MhaPoolLayer:
     def __init__(self, n_state: int, n_head: int, attention_dropout: float,
                  use_attn_mask: bool, layer_id: int, neg_inf: float,
                  output_projection: bool, output_dim: int,
-                 input_ffn, input_ffn_dim: int) -> None:
+                 input_ffn, input_ffn_dim: int, gated_ffn: bool) -> None:
+        self.gated_ffn = gated_ffn
         self.attention = MultiHeadSelfAttentionPool(n_state, n_head,
                                                     attention_dropout,
                                                     use_attn_mask, layer_id,
                                                     neg_inf, output_projection,
                                                     output_dim,
                                                     input_ffn, input_ffn_dim)
+        if self.gated_ffn:
+            self.ffn = PositionWiseFF(n_state, n_state, layer_id, True)
+            self.gate = Dense(n_state, use_bias=True,
+                              activation=tf.keras.backend.sigmoid,
+                              name='layer_{}/mha_pool_gate'.format(layer_id))
 
     def __call__(self, x, mask):
-        return self.attention(x, mask)
+        out = self.attention(x, mask)
+        if self.gated_ffn:
+            y = self.ffn(x)
+            out += y*self.gate(tf.keras.backend.concatenate([out, y], axis=2))
+            # TODO test with concat x
+        return out
 
 
 def create_mha_pool(embedding_dim: int = 768, max_len: int = 512,
@@ -370,7 +405,7 @@ def create_mha_pool(embedding_dim: int = 768, max_len: int = 512,
                     attention_dropout: float = 0.1, use_attn_mask: bool = True,
                     neg_inf: float = -1e9, internal_dim: int = 768,
                     output_projection: bool = False, output_dim: int = 768,
-                    input_ffn=None, input_ffn_dim=768,
+                    input_ffn=None, input_ffn_dim=768, gated_ffn: bool = False,
                     use_dense_connection: bool = False
                     ) -> tensorflow.keras.Model:
     input_ = Input(batch_shape=(None, max_len, embedding_dim),
@@ -383,7 +418,8 @@ def create_mha_pool(embedding_dim: int = 768, max_len: int = 512,
     for i in range(num_layers):
         out = MhaPoolLayer(internal_dim, num_heads, attention_dropout,
                            use_attn_mask, i, neg_inf, output_projection,
-                           output_dim, input_ffn, input_ffn_dim)(x, attn_mask)
+                           output_dim, input_ffn, input_ffn_dim, gated_ffn
+                           )(x, attn_mask)
         if use_dense_connection:
             x = tf.keras.backend.concatenate([x, out], axis=2)
         else:

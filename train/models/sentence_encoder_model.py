@@ -62,7 +62,7 @@ class SentenceEncoderModel(tf.keras.Model):
             mha_params = {
                 'max_len': max_sent_len,
                 'num_layers': (self.config['sentence_encoder']['pooling']
-                                         ['mha']['num_layers']),
+                                          ['mha']['num_layers']),
                 'num_heads': (self.config['sentence_encoder']['pooling']
                                          ['mha']['num_heads']),
                 'attention_dropout': (self.config['sentence_encoder']
@@ -81,11 +81,15 @@ class SentenceEncoderModel(tf.keras.Model):
                                          ['mha']['input_ffn']),
                 'input_ffn_dim': (self.config['sentence_encoder']['pooling']
                                              ['mha']['input_ffn_dim']),
+                'gated_ffn': (self.config['sentence_encoder']['pooling']
+                                         ['mha']['gated_ffn']),
                 'use_dense_connection': (self.config['sentence_encoder']
                                                     ['pooling']['mha']
                                                     ['use_dense_connection']),
             }
             self.mha_pool = create_mha_pool(**mha_params)
+            if self.pooling_function == 'mean_max':
+                self.mha_pool2 = create_mha_pool(**mha_params)
 
         elif self.pooling_method == 'dense':
             self.dense_pool_layer_cnt = (self.config['sentence_encoder']
@@ -140,7 +144,11 @@ class SentenceEncoderModel(tf.keras.Model):
         # Pooling preparation - expanding and mixing
         # ---------------------------------------------------------------------
         if self.pooling_method == 'mha':
-            sent_pool = self.mha_pool([sent_out, sent_tr_mask])
+            if self.pooling_function != 'mean_max':
+                sent_pool = self.mha_pool([sent_out, sent_tr_mask])
+            else:
+                sent_pool1 = self.mha_pool([sent_out, sent_tr_mask])
+                sent_pool2 = self.mha_pool2([sent_out, sent_tr_mask])
         elif self.pooling_method == 'dense':
             sent_pool = sent_out
             for i in range(self.dense_pool_layer_cnt):
@@ -164,6 +172,13 @@ class SentenceEncoderModel(tf.keras.Model):
             s2v_pool = tf.math.sqrt(tf.reduce_sum(tf.math.square(sent_pool)
                                                   * sent_mask, axis=1)
                                     / tf.reduce_sum(sent_mask, axis=1))
+        elif self.pooling_function == 'mean_max':
+            s2v_pool_mean = tf.reduce_sum(sent_pool1*sent_mask, axis=1) \
+                            / tf.reduce_sum(sent_mask, axis=1)
+            s2v_pool_max = tf.reduce_max(sent_pool2 + (1-sent_mask)*-1e5,
+                                         axis=1)
+            s2v_pool = tf.keras.backend.concatenate([s2v_pool_mean,
+                                                     s2v_pool_max], axis=1)
 
         # ---------------------------------------------------------------------
         # Pool projection to s2v dimension

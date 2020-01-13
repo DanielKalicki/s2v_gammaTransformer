@@ -97,6 +97,10 @@ def loss(y_true, y_pred):
     label_smoothing = config['training']['label_smoothing']
     new_onehot_labels = y_true * (1 - label_smoothing) + label_smoothing / 2
     loss = tf.keras.losses.categorical_crossentropy(new_onehot_labels, y_pred)
+    if config['training']['loss_mean0_s2v']:
+        v1 = tf.reduce_sum(tf.math.abs(tf.reduce_mean(sent1_s2v, axis=0)))
+        v2 = tf.reduce_sum(tf.math.abs(tf.reduce_mean(sent2_s2v, axis=0)))
+        loss += (v1+v2)*1e-5
     return loss
 
 

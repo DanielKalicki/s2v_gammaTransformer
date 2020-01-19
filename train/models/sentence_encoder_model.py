@@ -19,6 +19,8 @@ class SentenceEncoderModel(tf.keras.Model):
         max_sent_len = self.config['max_sent_len']
         word_dim = self.config['sentence_encoder']['transformer']['word_dim']
 
+        self.pooling_input = (self.config['sentence_encoder']['pooling']
+                                          ['input'])
         self.pooling_method = (self.config['sentence_encoder']['pooling']
                                           ['pooling_method'])
         self.pooling_activation = (self.config['sentence_encoder']['pooling']
@@ -55,6 +57,9 @@ class SentenceEncoderModel(tf.keras.Model):
             'mha_modifications': (self.config['sentence_encoder']
                                              ['transformer']
                                              ['mha_modifications']),
+            'ffn_modifications': (self.config['sentence_encoder']
+                                             ['transformer']
+                                             ['ffn_modifications']),
         }
         self.gtr = create_gated_transformer(**gtr_params)
 
@@ -139,6 +144,9 @@ class SentenceEncoderModel(tf.keras.Model):
         # Gated transformer
         # ---------------------------------------------------------------------
         sent_out = self.gtr([sent, sent_tr_mask])
+
+        if 's' in self.pooling_input:
+            sent_out = tf.keras.backend.concatenate([sent_out, sent], axis=2)
 
         # ---------------------------------------------------------------------
         # Pooling preparation - expanding and mixing

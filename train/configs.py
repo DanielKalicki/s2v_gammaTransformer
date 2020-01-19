@@ -31,9 +31,15 @@ default_config = {
                 'output_mha': False,
                 'output_mha_num_heads': 1,  # used only if output_mha = True
                 'output_projection': True,
+            },
+            'ffn_modifications': {
+                'ffn_layer': True,
             }
         },
         'pooling': {
+            'input': 'gt',  # concatenated input to the pooling layer
+                            # gt - gated transformer (always enabled)
+                            # s - sentences
             'pooling_method': 'mha',  # ['mha', 'dense']
             # 'dense': {
             #     'layer_cnt': 1,
@@ -201,11 +207,88 @@ configs[20]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
     'MhaPoolGatedFfn_MaxPool_4096d_Snli'
 # -------------------------------- Config 21 ---------------------------------
 configs[21]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
-configs[21]['sentence_encoder']['pooling']['mha']['num_heads'] = 64
-configs[21]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
-    'MhaPoolVnLin64h_MaxPool_4096d_Snli'
+(configs[21]['sentence_encoder']['transformer']['mha_modifications']
+            ['hidden_layer']) = False
+(configs[21]['sentence_encoder']['transformer']['mha_modifications']
+            ['output_mha']) = True
+(configs[21]['sentence_encoder']['transformer']['mha_modifications']
+            ['output_projection']) = False
+configs[21]['name'] = 'bL16_4xTr_Mha16hMha1h_g(x,y)*y+x_' + \
+    'MhaPoolVnLin_MaxPool_4096d_Snli'
 # -------------------------------- Config 22 ---------------------------------
 configs[22]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
-configs[22]['sentence_encoder']['pooling']['mha']['num_heads'] = 1
-configs[22]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
-    'MhaPoolVnLin1h_MaxPool_4096d_Snli'
+(configs[22]['sentence_encoder']['transformer']['mha_modifications']
+            ['hidden_layer']) = False
+(configs[22]['sentence_encoder']['transformer']['mha_modifications']
+            ['output_mha']) = True
+(configs[22]['sentence_encoder']['transformer']['mha_modifications']
+            ['output_mha_num_heads']) = 16
+(configs[22]['sentence_encoder']['transformer']['mha_modifications']
+            ['output_projection']) = False
+configs[22]['name'] = 'bL16_4xTr_Mha16hMha16h_g(x,y)*y+x_' + \
+    'MhaPoolVnLin_MaxPool_4096d_Snli'
+# -------------------------------- Config 23 ---------------------------------
+configs[23]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
+(configs[23]['sentence_encoder']['transformer']['mha_modifications']
+            ['hidden_layer']) = False
+(configs[23]['sentence_encoder']['transformer']['mha_modifications']
+            ['output_mha']) = True
+(configs[23]['sentence_encoder']['transformer']['mha_modifications']
+            ['output_mha_num_heads']) = 16
+(configs[23]['sentence_encoder']['transformer']['mha_modifications']
+            ['output_projection']) = True
+configs[23]['name'] = 'bL16_4xTr_Mha16hMha16hOutProj_g(x,y)*y+x_' + \
+    'MhaPoolVnLin_MaxPool_4096d_Snli'
+# -------------------------------- Config 24 ---------------------------------
+configs[24]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
+configs[24]['sentence_encoder']['pooling']['mha']['num_heads'] = 64
+configs[24]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
+    'MhaPoolVnLin64h_MaxPool_4096d_Snli'
+# -------------------------------- Config 25 ---------------------------------
+configs[25]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
+configs[25]['sentence_encoder']['pooling']['mha']['num_heads'] = 16
+configs[25]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
+    'MhaPoolVnLin16h_MaxPool_4096d_Snli'
+# -------------------------------- Config 26 ---------------------------------
+# hardcoded - output_mha is parallel
+configs[26]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
+(configs[26]['sentence_encoder']['transformer']['mha_modifications']
+            ['output_mha']) = True
+(configs[26]['sentence_encoder']['transformer']['mha_modifications']
+            ['output_mha_num_heads']) = 1
+configs[26]['name'] = 'bL16_4xTr_Mha16hFfnParMha1h_g(x,y)*y+x_' + \
+    'MhaPoolVnLin_MaxPool_4096d_Snli'
+# -------------------------------- Config 27 ---------------------------------
+# hardcoded
+configs[27]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
+configs[27]['sentence_encoder']['pooling']['mha']['gated_ffn'] = True
+configs[27]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
+    'MhaPoolVnLinResidualFfn_MaxPool_4096d_Snli'
+# -------------------------------- Config 28 ---------------------------------
+configs[28]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
+configs[28]['sentence_encoder']['pooling']['input'] = 'gt,s'
+configs[28]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
+    'gtsInput_MhaPoolVnLin_MaxPool_4096d_Snli'
+# -------------------------------- Config 29 ---------------------------------
+configs[29]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
+(configs[29]['sentence_encoder']['transformer']['mha_modifications']
+            ['output_mha']) = True
+(configs[29]['sentence_encoder']['transformer']['mha_modifications']
+            ['output_mha_num_heads']) = 16
+configs[29]['name'] = 'bL16_4xTr_Mha16hMha16hFfn_g(x,y)*y+x_' + \
+    '_MhaPoolVnLin_MaxPool_4096d_Snli'
+# -------------------------------- Config 30 ---------------------------------
+configs[30]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
+configs[30]['sentence_encoder']['transformer']['num_layers'] = 6
+(configs[30]['sentence_encoder']['transformer']['ffn_modifications']
+            ['ffn_layer']) = False
+configs[30]['name'] = 'bL16_6xTr_Mha16hFfn_g(x,y)*y+x_nFfnLayer' + \
+    '_MhaPoolVnLin_MaxPool_4096d_Snli'
+# -------------------------------- Config 31 ---------------------------------
+configs[31]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
+configs[31]['sentence_encoder']['transformer']['num_layers'] = 8
+(configs[31]['sentence_encoder']['transformer']['ffn_modifications']
+            ['ffn_layer']) = False
+configs[31]['name'] = 'bL16_8xTr_Mha16hFfn_g(x,y)*y+x_nFfnLayer' + \
+    '_MhaPoolVnLin_MaxPool_4096d_Snli'
+# gate Mha1 in MhaPool

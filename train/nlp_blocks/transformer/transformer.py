@@ -106,15 +106,15 @@ class MultiHeadSelfAttention:
         if self.act_after_mha:
             output = self.activation(output)
 
-        if self.hidd_layer:
-            output = self.c_attn_hidd(output)
-            if self.hidd_act:
-                output = self.h_activation(output)
-
         if self.out_mha:
             output = self.c_out_attn(output)
             output = self.out_attn(output) if mask is None else \
                 self.out_attn([output, mask])
+
+        if self.hidd_layer:
+           output = self.c_attn_hidd(output)
+           if self.hidd_act:
+               output = self.h_activation(output)
 
         if self.out_proj:
             output = self.c_attn_proj(output)
@@ -146,8 +146,10 @@ class GatedEncoderLayer:
                  residual_dropout: float, attention_dropout: float,
                  use_attn_mask: bool, layer_id: int, neg_inf: float,
                  ln_epsilon: float, accurate_gelu: bool,
-                 gate_type='None', mha_modifications={}) -> None:
+                 gate_type='None', mha_modifications={},
+                 ffn_modifications={}) -> None:
         self.gate_type = gate_type
+        self.ffn_layer = ffn_modifications['ffn_layer']
 
         self.attention = MultiHeadSelfAttention(n_state, n_head,
                                                 attention_dropout,
@@ -157,28 +159,33 @@ class GatedEncoderLayer:
                              name='layer_{}/ln_1_drop'.format(layer_id))
         self.ln1 = LayerNormalization(ln_epsilon,
                                       name='layer_{}/ln_1'.format(layer_id))
-        self.ffn = PositionWiseFF(n_state, d_hid, layer_id, accurate_gelu)
-        self.drop2 = Dropout(residual_dropout,
-                             name='layer_{}/ln_2_drop'.format(layer_id))
-        self.ln2 = LayerNormalization(ln_epsilon,
-                                      name='layer_{}/ln_2'.format(layer_id))
+        if self.ffn_layer:
+            self.ffn = PositionWiseFF(n_state, d_hid, layer_id, accurate_gelu)
+            self.drop2 = Dropout(residual_dropout,
+                                 name='layer_{}/ln_2_drop'.format(layer_id))
+            self.ln2 = LayerNormalization(ln_epsilon,
+                                          name='layer_{}/ln_2'
+                                               .format(layer_id))
 
         if self.gate_type != 'None':
             self.gate1_dense = Dense(n_state, use_bias=True,
                                      activation=tf.keras.backend.sigmoid,
                                      name='layer_{}/gate1'.format(layer_id))
-            self.gate2_dense = Dense(n_state, use_bias=True,
-                                     activation=tf.keras.backend.sigmoid,
-                                     name='layer_{}/gate2'.format(layer_id))
+            if self.ffn_layer:
+                self.gate2_dense = Dense(n_state, use_bias=True,
+                                         activation=tf.keras.backend.sigmoid,
+                                         name='layer_{}/gate2'
+                                              .format(layer_id))
             if self.gate_type == 'Wg(y)*tanh(Ug(y)) + x':
                 self.gate1_Ug = Dense(n_state, use_bias=False,
                                       activation=tf.keras.backend.tanh,
                                       name='layer_{}/gate1_Ug'
                                            .format(layer_id))
-                self.gate2_Ug = Dense(n_state, use_bias=False,
-                                      activation=tf.keras.backend.tanh,
-                                      name='layer_{}/gate2_Ug'
-                                           .format(layer_id))
+                if self.ffn_layer:
+                    self.gate2_Ug = Dense(n_state, use_bias=False,
+                                          activation=tf.keras.backend.tanh,
+                                          name='layer_{}/gate2_Ug'
+                                               .format(layer_id))
 
     def gate_output(self, x, y, g_dense, drop):
         if self.gate_type == 'Wg(x)*y + x':
@@ -226,28 +233,29 @@ class GatedEncoderLayer:
 
         x = self.ln1(x)
 
-        #          +-----+  y
-        #    +---->+ FFN +------+
-        #    |     +-----+      |
-        #    |                  v
-        #    |               +--+---+     +----+
-        # +--+-------------->+ Gate +---->+ LN +---->
-        # x                  +------+     +----+    x
-        y = self.ffn(x)
+        if self.ffn_layer:
+            #          +-----+  y
+            #    +---->+ FFN +------+
+            #    |     +-----+      |
+            #    |                  v
+            #    |               +--+---+     +----+
+            # +--+-------------->+ Gate +---->+ LN +---->
+            # x                  +------+     +----+    x
+            y = self.ffn(x)
 
-        if self.gate_type in ['Wg(x)*y + x', 'Wg(x,y)*y + x']:
-            x = self.gate_output(x, y, self.gate2_dense, self.drop2)
-        elif self.gate_type == 'Wg(y)*tanh(Ug(y)) + x':
-            x = self.gate_sigmoid_tanh(x, y, self.gate2_dense, self.gate2_Ug,
-                                       self.drop2)
-        elif self.gate_type == 'Wg(x)*x + y':
-            x = self.gate_input(x, y, self.gate2_dense, self.drop2)
-        elif self.gate_type == 'Wg(x)*x + (1-Wg(x))*y':
-            x = self.gate_highway(x, y, self.gate2_dense, self.drop2)
-        elif self.gate_type == 'None':
-            x = x + self.drop2(y)
+            if self.gate_type in ['Wg(x)*y + x', 'Wg(x,y)*y + x']:
+                x = self.gate_output(x, y, self.gate2_dense, self.drop2)
+            elif self.gate_type == 'Wg(y)*tanh(Ug(y)) + x':
+                x = self.gate_sigmoid_tanh(x, y, self.gate2_dense,
+                                           self.gate2_Ug, self.drop2)
+            elif self.gate_type == 'Wg(x)*x + y':
+                x = self.gate_input(x, y, self.gate2_dense, self.drop2)
+            elif self.gate_type == 'Wg(x)*x + (1-Wg(x))*y':
+                x = self.gate_highway(x, y, self.gate2_dense, self.drop2)
+            elif self.gate_type == 'None':
+                x = x + self.drop2(y)
 
-        x = self.ln2(x)
+            x = self.ln2(x)
 
         return x
 
@@ -260,7 +268,8 @@ def create_gated_transformer(embedding_dim: int = 768, max_len: int = 512,
                              use_attn_mask: bool = True, neg_inf: float = -1e9,
                              layer_norm_epsilon: float = 1e-5,
                              accurate_gelu: bool = True, gate_type='None',
-                             mha_modifications={}) -> tensorflow.keras.Model:
+                             mha_modifications={}, ffn_modifications={}
+                             ) -> tensorflow.keras.Model:
 
     if gate_type not in ['None', 'Wg(x)*y + x', 'Wg(x,y)*y + x',
                          'Wg(y)*tanh(Ug(y)) + x', 'Wg(x)*x + y',
@@ -279,8 +288,8 @@ def create_gated_transformer(embedding_dim: int = 768, max_len: int = 512,
         x = GatedEncoderLayer(embedding_dim, num_heads, d_hid,
                               residual_dropout, attention_dropout,
                               use_attn_mask, i, neg_inf, layer_norm_epsilon,
-                              accurate_gelu, gate_type, mha_modifications
-                              )(x, attn_mask)
+                              accurate_gelu, gate_type, mha_modifications,
+                              ffn_modifications)(x, attn_mask)
     if use_attn_mask:
         inputs.append(attn_mask)
     return tensorflow.keras.Model(inputs=inputs, outputs=[x],
@@ -396,7 +405,6 @@ class MhaPoolLayer:
         if self.gated_ffn:
             y = self.ffn(x)
             out += y*self.gate(tf.keras.backend.concatenate([out, y], axis=2))
-            # TODO test with concat x
         return out
 
 

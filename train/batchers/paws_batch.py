@@ -12,7 +12,7 @@ batch_train_data = []
 batch_valid_data = []
 
 
-class SnliBatch(tf.keras.utils.Sequence):
+class PawsBatch(tf.keras.utils.Sequence):
     def __init__(self, config, valid=False):
         """
         Initialize batcher
@@ -21,9 +21,9 @@ class SnliBatch(tf.keras.utils.Sequence):
         self.config = config
         self.valid = valid
 
-        self.datasets_dir = "./datasets/snli_1.0/"
+        self.datasets_dir = "./datasets/paws_wiki_labeled_final/final/"
         self.batch_dir = './train/datasets/'
-        self.labels = ['contradiction', 'neutral', 'entailment']
+        self.labels = ['0', '1']
 
         # if not self._batch_file_does_exist():
         #     self._create_batch_file()
@@ -33,7 +33,7 @@ class SnliBatch(tf.keras.utils.Sequence):
 
     def _batch_file_does_exist(self):
         """
-        Checks if the batch file was already created.
+        Checks if the batch file is already existing
         :return:    True - batch file exist.
                     False - batch file does not exist.
         """
@@ -68,7 +68,7 @@ class SnliBatch(tf.keras.utils.Sequence):
         datasets_files = os.listdir(self.datasets_dir)
         os.makedirs(self.batch_dir, exist_ok=True)
         for dataset in datasets_files:
-            if dataset.split('.')[-1] == 'txt':
+            if dataset.split('.')[-1] == 'tsv':
                 processed_dataset = []
                 with open(self.datasets_dir + '/' + dataset) as f:
                     print(dataset)
@@ -76,12 +76,12 @@ class SnliBatch(tf.keras.utils.Sequence):
                     for idx, line in enumerate(f):
                         if idx > 1:
                             data = line.replace('\n', '').split('\t')
-                            sent1 = data[5]
-                            sent2 = data[6]
+                            sent1 = data[1]
+                            sent2 = data[2]
                             if (len(sent1.split(' ')) < 200) \
                                and (len(sent2.split(' ')) < 200):
-                                if data[0] in self.labels:
-                                    label = self.labels.index(data[0])
+                                if data[3] in self.labels:
+                                    label = self.labels.index(data[3])
                                     sents_emb = self._process_sentences(
                                         [sent1, sent2])
                                     processed_dataset.append({
@@ -96,16 +96,9 @@ class SnliBatch(tf.keras.utils.Sequence):
                                 print(len(sent2.split(' ')))
                             if (idx % 100) == 0:
                                 print(idx)
-                            if (idx % 50000) == 0:
-                                pickle.dump(processed_dataset, open(
-                                    self.batch_dir + dataset.replace(
-                                        '.txt', '_' + str(idx) + '.pickle'),
-                                    'wb'))
-                                processed_dataset = []
-                            g_idx = idx
                     pickle.dump(processed_dataset, open(
-                        self.batch_dir + dataset.replace(
-                            '.txt', '_' + str(g_idx) + '.pickle'), 'wb'))
+                        self.batch_dir + 'paws_' + dataset.replace(
+                            '.tsv', '.pickle'), 'wb'))
 
     def _process_sentences(self, sentences):
         sentences_emb = []
@@ -140,24 +133,16 @@ class SnliBatch(tf.keras.utils.Sequence):
         test_file_list = []
         batch_files = os.listdir(self.batch_dir)
         for batch in batch_files:
-            if ('train' in batch) and ('snli' in batch):
+            if ('train' in batch) and ('paws' in batch):
                 train_files_list.append(batch)
-            elif ('test' in batch) and ('snli' in batch):
+            elif ('test' in batch) and ('paws' in batch):
                 test_file_list.append(batch)
 
-        self.train_batch_part += 1
-        if self.train_batch_part >= len(train_files_list):
-            self.train_batch_part = 0
-
-        train_files_list.sort()
-        train_file = train_files_list[self.train_batch_part]
-        print(train_file)
-
-        batch_train_data = pickle.load(open(self.batch_dir + train_file, 'rb'))
-        random.shuffle(batch_train_data)
+        batch_train_data = pickle.load(open(self.batch_dir +
+                                            train_files_list[0], 'rb'))
         if len(batch_valid_data) == 0:
-            batch_valid_data = pickle.load(
-                open(self.batch_dir + test_file_list[0], 'rb'))
+            batch_valid_data = pickle.load(open(self.batch_dir +
+                                                test_file_list[0], 'rb'))
 
     def on_epoch_end(self):
         self._init_batch()
@@ -190,7 +175,7 @@ class SnliBatch(tf.keras.utils.Sequence):
         sentence2_mask = np.zeros(shape=(self.config['batch_size'],
                                          self.config['max_sent_len']),
                                   dtype=np.bool_)
-        label = np.zeros(shape=(self.config['batch_size'], 3),
+        label = np.zeros(shape=(self.config['batch_size'], 2),
                          dtype=np.bool_)
 
         batch_dataset = batch_valid_data if self.valid else batch_train_data
@@ -200,7 +185,7 @@ class SnliBatch(tf.keras.utils.Sequence):
 
             sent1 = batch_dataset[d_idx]['sentences_emb'][0]
             sent2 = batch_dataset[d_idx]['sentences_emb'][1]
-            nli_label = batch_dataset[d_idx]['label']
+            paws_label = batch_dataset[d_idx]['label']
 
             sentence1[b_idx][0:min(len(sent1), self.config['max_sent_len'])] =\
                 sent1[0:min(len(sent1), self.config['max_sent_len'])]
@@ -212,7 +197,7 @@ class SnliBatch(tf.keras.utils.Sequence):
             sentence2_mask[b_idx][0:min(len(sent2),
                                         self.config['max_sent_len'])] = True
 
-            label[b_idx][nli_label] = True
+            label[b_idx][paws_label] = True
 
         x = {
             'sentence1': sentence1,
@@ -225,10 +210,9 @@ class SnliBatch(tf.keras.utils.Sequence):
                 sentence2_mask, is_causal=False, bert_attention=True),
         }
         y = {
-            'nli_classifier_model': label,
+            'paws_classifier_model': label,
         }
         return x, y
-
 
 def create_attention_mask(pad_mask: Optional[np.array], is_causal: bool,
                           batch_size: Optional[int] = None,
@@ -269,7 +253,7 @@ def create_attention_mask(pad_mask: Optional[np.array], is_causal: bool,
 
 
 def test():
-    batcher = SnliBatch({
+    batcher = PawsBatch({
         'batch_size': 2,
         'max_sent_cnt': 6,
         'max_sent_len': 64,

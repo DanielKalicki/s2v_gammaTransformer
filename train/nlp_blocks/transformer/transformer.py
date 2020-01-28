@@ -42,12 +42,16 @@ class MultiHeadSelfAttention:
         self.hidd_layer = False
         self.hidd_act = False
         self.out_mha = False
+        self.use_bias = False,
+
+        if ('use_bias' in modifications) and (modifications['use_bias']):
+            self.use_bias = True
 
         mha_dim = n_state
         if 'inner_dim' in modifications:
             mha_dim = modifications['inner_dim']
 
-        self.c_attn = Dense(3 * mha_dim, use_bias=False,
+        self.c_attn = Dense(3 * mha_dim, use_bias=self.use_bias,
                             name='layer_{}/c_attn'.format(layer_id))
 
         self.attn = MultiHeadAttention(n_head, mha_dim, attention_dropout,
@@ -67,7 +71,7 @@ class MultiHeadSelfAttention:
            and (modifications['hidden_layer']):
             self.hidd_layer = True
             self.hidd_dim = modifications['hidden_dim']
-            self.c_attn_hidd = Dense(self.hidd_dim, use_bias=False,
+            self.c_attn_hidd = Dense(self.hidd_dim, use_bias=self.use_bias,
                                      name='layer_{}/c_attn_hidd'
                                           .format(layer_id))
             if ('hidden_activation' in modifications) \
@@ -81,7 +85,7 @@ class MultiHeadSelfAttention:
         if ('output_mha' in modifications) \
            and (modifications['output_mha']):
             self.out_mha = True
-            self.c_out_attn = Dense(3 * n_state, use_bias=False,
+            self.c_out_attn = Dense(3 * n_state, use_bias=self.use_bias,
                                     name='layer_{}/c_out_attn'
                                          .format(layer_id))
             self.out_attn = MultiHeadAttention((modifications
@@ -94,7 +98,7 @@ class MultiHeadSelfAttention:
         if ('output_projection' in modifications) \
            and (modifications['output_projection']):
             self.out_proj = True
-            self.c_attn_proj = Dense(n_state, use_bias=False,
+            self.c_attn_proj = Dense(n_state, use_bias=self.use_bias,
                                      name='layer_{}/c_attn_proj'
                                           .format(layer_id))
 
@@ -126,12 +130,16 @@ class PositionWiseFF:
     Feedforward network implementation used in Transformer architecture.
     """
     def __init__(self, n_state: int, d_hid: int, layer_id: int,
-                 accurate_gelu: bool) -> None:
-        self.c_fc = Dense(d_hid, use_bias=False,
+                 accurate_gelu: bool, modifications={}) -> None:
+        self.use_bias = False
+        if ('use_bias' in modifications) and (modifications['use_bias']):
+            self.use_bias = True
+
+        self.c_fc = Dense(d_hid, use_bias=self.use_bias,
                           name='layer_{}/c_fc'.format(layer_id))
         self.activation = Gelu(accurate=accurate_gelu,
                                name='layer_{}/gelu'.format(layer_id))
-        self.c_ffn_proj = Dense(n_state, use_bias=False,
+        self.c_ffn_proj = Dense(n_state, use_bias=self.use_bias,
                                 name='layer_{}/c_ffn_proj'.format(layer_id))
 
     def __call__(self, x):
@@ -160,7 +168,8 @@ class GatedEncoderLayer:
         self.ln1 = LayerNormalization(ln_epsilon,
                                       name='layer_{}/ln_1'.format(layer_id))
         if self.ffn_layer:
-            self.ffn = PositionWiseFF(n_state, d_hid, layer_id, accurate_gelu)
+            self.ffn = PositionWiseFF(n_state, d_hid, layer_id, accurate_gelu,
+                                      ffn_modifications)
             self.drop2 = Dropout(residual_dropout,
                                  name='layer_{}/ln_2_drop'.format(layer_id))
             self.ln2 = LayerNormalization(ln_epsilon,
@@ -398,7 +407,8 @@ class MhaPoolLayer:
             self.ffn = PositionWiseFF(n_state, n_state, layer_id, True)
             self.gate = Dense(n_state, use_bias=True,
                               activation=tf.keras.backend.sigmoid,
-                              name='layer_{}/mha_pool_gate'.format(layer_id))
+                              name='layer_{}/mha_pool_gate'.format(layer_id),
+                              modifications={'use_bias': False})
 
     def __call__(self, x, mask):
         out = self.attention(x, mask)

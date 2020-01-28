@@ -21,14 +21,15 @@ class PawsBatch(tf.keras.utils.Sequence):
         self.config = config
         self.valid = valid
 
+        self.train_parts_per_epoch = 12
+        self.train_part = 0
+
         self.datasets_dir = "./datasets/paws_wiki_labeled_final/final/"
         self.batch_dir = './train/datasets/'
-        self.labels = ['0', '1']
 
         # if not self._batch_file_does_exist():
         #     self._create_batch_file()
 
-        self.train_batch_part = -1
         self._init_batch()
 
     def _batch_file_does_exist(self):
@@ -72,7 +73,6 @@ class PawsBatch(tf.keras.utils.Sequence):
                 processed_dataset = []
                 with open(self.datasets_dir + '/' + dataset) as f:
                     print(dataset)
-                    g_idx = 0
                     for idx, line in enumerate(f):
                         if idx > 1:
                             data = line.replace('\n', '').split('\t')
@@ -140,12 +140,19 @@ class PawsBatch(tf.keras.utils.Sequence):
 
         batch_train_data = pickle.load(open(self.batch_dir +
                                             train_files_list[0], 'rb'))
+        random.shuffle(batch_train_data)
         if len(batch_valid_data) == 0:
             batch_valid_data = pickle.load(open(self.batch_dir +
                                                 test_file_list[0], 'rb'))
 
     def on_epoch_end(self):
-        self._init_batch()
+        self.train_part += 1
+        if self.train_part == self.train_parts_per_epoch:
+            self.train_part = 0
+            self._init_batch()
+        print('self.train_part:')
+        print(self.train_part)
+        print('')
 
     def __len__(self):
         global batch_train_data, batch_valid_data
@@ -153,7 +160,8 @@ class PawsBatch(tf.keras.utils.Sequence):
         if self.valid:
             return int(len(batch_valid_data) / self.config['batch_size'])
         else:
-            return int(len(batch_train_data) / self.config['batch_size'])
+            return int(len(batch_train_data) / self.config['batch_size']
+                       / self.train_parts_per_epoch)
 
     def __getitem__(self, idx):
         """
@@ -181,7 +189,12 @@ class PawsBatch(tf.keras.utils.Sequence):
         batch_dataset = batch_valid_data if self.valid else batch_train_data
 
         for b_idx in range(self.config['batch_size']):
-            d_idx = b_idx + (idx - 1) * self.config['batch_size']
+            if self.valid:
+                d_idx = b_idx + (idx - 1) * self.config['batch_size']
+            else:
+                d_idx = b_idx + (idx - 1) * self.config['batch_size'] + \
+                        self.train_part * int(len(batch_train_data)
+                                              / self.train_parts_per_epoch)
 
             sent1 = batch_dataset[d_idx]['sentences_emb'][0]
             sent2 = batch_dataset[d_idx]['sentences_emb'][1]
@@ -210,7 +223,7 @@ class PawsBatch(tf.keras.utils.Sequence):
                 sentence2_mask, is_causal=False, bert_attention=True),
         }
         y = {
-            'paws_classifier_model': label,
+            'nli_classifier_model': label,
         }
         return x, y
 

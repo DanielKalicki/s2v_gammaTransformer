@@ -36,7 +36,8 @@ class NliClassifierModel(tf.keras.Model):
         self.fc_l1_act = self.h_activation
         self.fc_drop = tf.keras.layers.Dropout(self.h_drop)
         self.prediction = tf.keras.layers.Dense(
-            3, activation=self.pred_activation)
+            self.config['classifier_network']['num_classes'],
+            activation=self.pred_activation)
 
     def call(self, sent1, sent2):
         x_vec = tf.keras.backend.concatenate(

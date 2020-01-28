@@ -3,6 +3,8 @@ import os
 import shutil
 
 from batchers.snli_batch import SnliBatch
+from batchers.qnli_batch import QnliBatch
+from batchers.paws_batch import PawsBatch
 from models.sentence_encoder_model import SentenceEncoderModel
 from models.nli_matching_model import NliClassifierModel
 from tensorflow.keras.callbacks import (TensorBoard, LearningRateScheduler,
@@ -13,7 +15,6 @@ import sys
 # -----------------------------------------------------------------------------
 # Model configuration
 # -----------------------------------------------------------------------------
-
 print(int(sys.argv[1]))
 config = configs[int(sys.argv[1])]
 
@@ -87,8 +88,15 @@ elif config['training']['optimizer'] == 'Adam':
 # -----------------------------------------------------------------------------
 # Batchers
 # -----------------------------------------------------------------------------
-generator_train = SnliBatch(config)
-generator_valid = SnliBatch(config, valid=True)
+if config['training']['task'] == 'snli':
+    generator_train = SnliBatch(config)
+    generator_valid = SnliBatch(config, valid=True)
+elif config['training']['task'] == 'qnli':
+    generator_train = QnliBatch(config)
+    generator_valid = QnliBatch(config, valid=True)
+elif config['training']['task'] == 'paws':
+    generator_train = PawsBatch(config)
+    generator_valid = PawsBatch(config, valid=True)
 
 # -----------------------------------------------------------------------------
 # Training callbacks

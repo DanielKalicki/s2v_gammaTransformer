@@ -6,6 +6,7 @@ default_config = {
     'max_sent_len': 64,
     'word_edim': 1024,
     's2v_dim': 4096,
+    'name': '',
 
     'sentence_encoder': {
         'input_drop': 0.0,
@@ -23,6 +24,7 @@ default_config = {
                                            # 'Wg(x)*x + y'
                                            # 'Wg(x)*x + (1-Wg(x))*y'
             'mha_modifications': {
+                'use_bias': False,
                 'inner_dim': 1024,
                 'activation_after_mha': None,
                 'hidden_layer': True,
@@ -33,6 +35,7 @@ default_config = {
                 'output_projection': True,
             },
             'ffn_modifications': {
+                'use_bias': False,
                 'ffn_layer': True,
             }
         },
@@ -72,9 +75,11 @@ default_config = {
         'hidden_layer_norm': False,
         'hidden_activation': 'gelu',
         'prediction_activation': tf.keras.activations.softmax,
+        'num_classes': 3
     },
 
     'training': {
+        'task': 'snli',
         'loss_mean0_s2v': False,
         'optimizer': 'Nadam',
         'clipnorm': 1.,
@@ -96,7 +101,10 @@ configs[0]['classifier_network']['hidden_activation'] = \
 configs[0]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
     'MhaPoolVnLin_MaxPool_4096d_Snli_TanhClass'
 # -------------------------------- Config 01 ---------------------------------
-# hardcoded code change
+(configs[1]['sentence_encoder']['transformer']['mha_modifications']
+           ['use_bias']) = True
+(configs[1]['sentence_encoder']['transformer']['ffn_modifications']
+           ['use_bias']) = True
 configs[1]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
 configs[1]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
     'MhaPoolVnLin_MaxPool_4096d_Snli_TrBias'
@@ -250,45 +258,49 @@ configs[25]['sentence_encoder']['pooling']['mha']['num_heads'] = 16
 configs[25]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
     'MhaPoolVnLin16h_MaxPool_4096d_Snli'
 # -------------------------------- Config 26 ---------------------------------
-# hardcoded - output_mha is parallel
 configs[26]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
 (configs[26]['sentence_encoder']['transformer']['mha_modifications']
             ['output_mha']) = True
 (configs[26]['sentence_encoder']['transformer']['mha_modifications']
-            ['output_mha_num_heads']) = 1
-configs[26]['name'] = 'bL16_4xTr_Mha16hFfnParMha1h_g(x,y)*y+x_' + \
+            ['output_mha_num_heads']) = 16
+configs[26]['name'] = 'bL16_4xTr_Mha16hMha16hFfn_g(x,y)*y+x_' + \
     'MhaPoolVnLin_MaxPool_4096d_Snli'
 # -------------------------------- Config 27 ---------------------------------
-# hardcoded
 configs[27]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
-configs[27]['sentence_encoder']['pooling']['mha']['gated_ffn'] = True
+configs[27]['sentence_encoder']['pooling']['input'] = 'gt,s'
 configs[27]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
-    'MhaPoolVnLinResidualFfn_MaxPool_4096d_Snli'
+    'gtsInput_MhaPoolVnLin_MaxPool_4096d_Snli'
 # -------------------------------- Config 28 ---------------------------------
 configs[28]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
-configs[28]['sentence_encoder']['pooling']['input'] = 'gt,s'
-configs[28]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
-    'gtsInput_MhaPoolVnLin_MaxPool_4096d_Snli'
+configs[28]['sentence_encoder']['transformer']['num_layers'] = 6
+(configs[28]['sentence_encoder']['transformer']['ffn_modifications']
+            ['ffn_layer']) = False
+configs[28]['name'] = 'bL16_6xTr_Mha16hFfn_g(x,y)*y+x_nFfnLayer_' + \
+    'MhaPoolVnLin_MaxPool_4096d_Snli'
 # -------------------------------- Config 29 ---------------------------------
 configs[29]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
-(configs[29]['sentence_encoder']['transformer']['mha_modifications']
-            ['output_mha']) = True
-(configs[29]['sentence_encoder']['transformer']['mha_modifications']
-            ['output_mha_num_heads']) = 16
-configs[29]['name'] = 'bL16_4xTr_Mha16hMha16hFfn_g(x,y)*y+x_' + \
-    '_MhaPoolVnLin_MaxPool_4096d_Snli'
+configs[29]['sentence_encoder']['transformer']['num_layers'] = 8
+(configs[29]['sentence_encoder']['transformer']['ffn_modifications']
+            ['ffn_layer']) = False
+configs[29]['name'] = 'bL16_8xTr_Mha16hFfn_g(x,y)*y+x_nFfnLayer_' + \
+    'MhaPoolVnLin_MaxPool_4096d_Snli'
 # -------------------------------- Config 30 ---------------------------------
 configs[30]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
-configs[30]['sentence_encoder']['transformer']['num_layers'] = 6
+configs[30]['sentence_encoder']['transformer']['num_layers'] = 8
 (configs[30]['sentence_encoder']['transformer']['ffn_modifications']
             ['ffn_layer']) = False
-configs[30]['name'] = 'bL16_6xTr_Mha16hFfn_g(x,y)*y+x_nFfnLayer' + \
-    '_MhaPoolVnLin_MaxPool_4096d_Snli'
-# -------------------------------- Config 31 ---------------------------------
-configs[31]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
-configs[31]['sentence_encoder']['transformer']['num_layers'] = 8
-(configs[31]['sentence_encoder']['transformer']['ffn_modifications']
-            ['ffn_layer']) = False
-configs[31]['name'] = 'bL16_8xTr_Mha16hFfn_g(x,y)*y+x_nFfnLayer' + \
-    '_MhaPoolVnLin_MaxPool_4096d_Snli'
-# gate Mha1 in MhaPool
+(configs[30]['sentence_encoder']['transformer']['mha_modifications']
+            ['hidden_dim']) = 4096
+configs[30]['name'] = 'bL16_8xTr_Mha16hFfn4096h_g(x,y)*y+x_nFfnLayer_' + \
+    'MhaPoolVnLin_MaxPool_4096d_Snli'
+
+
+task = 'Paws'
+if task != 'Snli':
+    for config in configs:
+        config['name'] = config['name'].replace('Snli', task)
+        config['classifier_network']['num_classes'] = 2  # PAWS & QNLI == 2
+        config['training']['lr'] = ([4e-5]*12 + [2e-5]*12 + [1e-5]*12 + [5e-6]*12 +
+                                 [2e-6]*6 + [1e-6]*6 + [5e-7]*6 + [2e-7]*6 +
+                                 [1e-7]*6)
+        config['training']['task'] = task.lower()

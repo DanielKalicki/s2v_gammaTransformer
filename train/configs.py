@@ -17,6 +17,7 @@ default_config = {
             'ffn_dim': 4*1024,
             'residual_dropout': 0.0,
             'attention_dropout': 0.0,
+            # 'kernel_initializer': tf.keras.initializers.Orthogonal,
             'gate_type': 'Wg(x,y)*y + x',  # 'None' - Residual connections
                                            # 'Wg(x)*y + x'
                                            # 'Wg(x,y)*y + x'
@@ -25,6 +26,7 @@ default_config = {
                                            # 'Wg(x)*x + (1-Wg(x))*y'
             'mha_modifications': {
                 'use_bias': False,
+                # 'kernel_initializer': tf.keras.initializers.Orthogonal,
                 'inner_dim': 1024,
                 'activation_after_mha': None,
                 'hidden_layer': True,
@@ -59,6 +61,7 @@ default_config = {
                 'input_ffn': '',  # None, q, k, v or any combination
                 'input_ffn_dim': 4096,  # used only if input_ffn != None
                 'gated_ffn': False,
+                # 'kernel_initializer': tf.keras.initializers.Orthogonal,
                 'use_dense_connection': False,
             },
             'pooling_activation': None,  # activation function used before pool
@@ -75,6 +78,7 @@ default_config = {
         'hidden_layer_norm': False,
         'hidden_activation': 'gelu',
         'prediction_activation': tf.keras.activations.softmax,
+        # 'kernel_initializer': tf.keras.initializers.Orthogonal,
         'num_classes': 3
     },
 
@@ -295,12 +299,19 @@ configs[30]['name'] = 'bL16_8xTr_Mha16hFfn4096h_g(x,y)*y+x_nFfnLayer_' + \
     'MhaPoolVnLin_MaxPool_4096d_Snli'
 
 
-task = 'Paws'
+task = 'Qnli'
 if task != 'Snli':
     for config in configs:
         config['name'] = config['name'].replace('Snli', task)
         config['classifier_network']['num_classes'] = 2  # PAWS & QNLI == 2
-        config['training']['lr'] = ([4e-5]*12 + [2e-5]*12 + [1e-5]*12 + [5e-6]*12 +
-                                 [2e-6]*6 + [1e-6]*6 + [5e-7]*6 + [2e-7]*6 +
-                                 [1e-7]*6)
+
+        if task == 'Paws':
+            config['training']['lr'] = ([4e-5]*12 + [2e-5]*12 + [1e-5]*12 +
+                                        [5e-6]*12 + [2e-6]*6 + [1e-6]*6 +
+                                        [5e-7]*6 + [2e-7]*6 + [1e-7]*6)
+        elif task == 'Qnli':
+            config['training']['lr'] = ([4e-5]*5 + [2e-5]*6 + [1e-5]*5 +
+                                        [5e-6]*6 + [2e-6]*5 + [1e-6]*6 +
+                                        [5e-7]*6 + [2e-7]*6 + [1e-7]*6)
+
         config['training']['task'] = task.lower()

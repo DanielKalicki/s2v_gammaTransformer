@@ -52,6 +52,9 @@ class SentenceEncoderModel(tf.keras.Model):
             'd_hid': (self.config['sentence_encoder']['transformer']
                                  ['ffn_dim']),
             'use_attn_mask': True,
+            # 'kernel_initializer': (self.config['sentence_encoder']
+                                              # ['transformer']
+                                              # ['kernel_initializer']),
             'gate_type': (self.config['sentence_encoder']['transformer']
                                      ['gate_type']),
             'mha_modifications': (self.config['sentence_encoder']
@@ -63,6 +66,10 @@ class SentenceEncoderModel(tf.keras.Model):
         }
         self.gtr = create_gated_transformer(**gtr_params)
 
+        pooling_input_dim = word_dim
+        if 's' in self.pooling_input:
+            pooling_input_dim = 2*word_dim
+
         if self.pooling_method == 'mha':
             mha_params = {
                 'max_len': max_sent_len,
@@ -73,7 +80,7 @@ class SentenceEncoderModel(tf.keras.Model):
                 'attention_dropout': (self.config['sentence_encoder']
                                                  ['pooling']
                                                  ['mha']['attention_dropout']),
-                'embedding_dim': word_dim,
+                'embedding_dim': pooling_input_dim,
                 'use_attn_mask': True,
                 'internal_dim': (self.config['sentence_encoder']['pooling']
                                             ['mha']['inner_dim']),
@@ -88,6 +95,9 @@ class SentenceEncoderModel(tf.keras.Model):
                                              ['mha']['input_ffn_dim']),
                 'gated_ffn': (self.config['sentence_encoder']['pooling']
                                          ['mha']['gated_ffn']),
+                # 'kernel_initializer': (self.config['sentence_encoder']
+                                                  # ['pooling']['mha']
+                                                  # ['kernel_initializer']),
                 'use_dense_connection': (self.config['sentence_encoder']
                                                     ['pooling']['mha']
                                                     ['use_dense_connection']),

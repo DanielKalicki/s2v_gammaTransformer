@@ -52,9 +52,9 @@ class SentenceEncoderModel(tf.keras.Model):
             'd_hid': (self.config['sentence_encoder']['transformer']
                                  ['ffn_dim']),
             'use_attn_mask': True,
-            # 'kernel_initializer': (self.config['sentence_encoder']
-                                              # ['transformer']
-                                              # ['kernel_initializer']),
+            'kernel_initializer': (self.config['sentence_encoder']
+                                              ['transformer']
+                                              ['kernel_initializer']),
             'gate_type': (self.config['sentence_encoder']['transformer']
                                      ['gate_type']),
             'mha_modifications': (self.config['sentence_encoder']
@@ -95,9 +95,9 @@ class SentenceEncoderModel(tf.keras.Model):
                                              ['mha']['input_ffn_dim']),
                 'gated_ffn': (self.config['sentence_encoder']['pooling']
                                          ['mha']['gated_ffn']),
-                # 'kernel_initializer': (self.config['sentence_encoder']
-                                                  # ['pooling']['mha']
-                                                  # ['kernel_initializer']),
+                'kernel_initializer': (self.config['sentence_encoder']
+                                                  ['pooling']['mha']
+                                                  ['kernel_initializer']),
                 'use_dense_connection': (self.config['sentence_encoder']
                                                     ['pooling']['mha']
                                                     ['use_dense_connection']),

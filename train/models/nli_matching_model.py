@@ -23,7 +23,9 @@ class NliClassifierModel(tf.keras.Model):
                                         ['hidden_activation'])
         self.h_ln = (self.config['classifier_network']['hidden_layer_norm'])
         self.kernel_initializer = (self.config['classifier_network']
-                                                 ['kernel_initializer'])
+                                              ['kernel_initializer'])
+        self.kernel_constraint = (self.config['classifier_network']
+                                             ['kernel_constraint'])
         if self.h_activation == 'gelu':
             self.h_activation = gelu
         elif self.h_activation == 'mish':
@@ -34,6 +36,7 @@ class NliClassifierModel(tf.keras.Model):
 
         self.fc_l1 = tf.keras.layers.Dense(self.h_dim,
                                            kernel_initializer=self.kernel_initializer,
+                                           kernel_constraint=self.kernel_constraint,
                                            activation=None)
         if self.h_ln:
             self.fc_l1_ln = LayerNormalization(1e-5)
@@ -42,6 +45,7 @@ class NliClassifierModel(tf.keras.Model):
         self.prediction = tf.keras.layers.Dense(
             self.config['classifier_network']['num_classes'],
             kernel_initializer=self.kernel_initializer,
+            kernel_constraint=self.kernel_constraint,
             activation=self.pred_activation)
 
     def call(self, sent1, sent2):

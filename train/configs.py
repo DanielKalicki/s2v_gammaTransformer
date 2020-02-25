@@ -18,6 +18,9 @@ default_config = {
             'residual_dropout': 0.0,
             'attention_dropout': 0.0,
             'kernel_initializer': tf.keras.initializers.glorot_uniform,
+            'kernel_constraint': None,
+            'normalization_position': 'post',  # pre or post normalization
+                                               # https://openreview.net/pdf?id=B1x8anVFPr
             'gate_type': 'Wg(x,y)*y + x',  # 'None' - Residual connections
                                            # 'Wg(x)*y + x'
                                            # 'Wg(x,y)*y + x'
@@ -27,6 +30,7 @@ default_config = {
             'mha_modifications': {
                 'use_bias': False,
                 'kernel_initializer': tf.keras.initializers.glorot_uniform,
+                'kernel_constraint': None,
                 'inner_dim': 1024,
                 'activation_after_mha': None,
                 'hidden_layer': True,
@@ -62,6 +66,7 @@ default_config = {
                 'input_ffn_dim': 4096,  # used only if input_ffn != None
                 'gated_ffn': False,
                 'kernel_initializer': tf.keras.initializers.glorot_uniform,
+                'kernel_constraint': None,
                 'use_dense_connection': False,
             },
             'pooling_activation': None,  # activation function used before pool
@@ -79,6 +84,7 @@ default_config = {
         'hidden_activation': 'gelu',
         'prediction_activation': tf.keras.activations.softmax,
         'kernel_initializer': tf.keras.initializers.glorot_uniform,
+        'kernel_constraint': None,
         'num_classes': 3
     },
 
@@ -103,8 +109,8 @@ for i in range(0, 4):
     configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
     configs[i]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
         'MhaPoolVnLin_MaxPool_4096d_Snli_'+str(i)
-# ------------------------------- Config 04-08 --------------------------------
-for i in range(4, 9):
+# ------------------------------- Config 04-07 --------------------------------
+for i in range(4, 8):
     configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
     (configs[i]['sentence_encoder']['transformer']['mha_modifications']
                 ['hidden_layer']) = False
@@ -112,25 +118,25 @@ for i in range(4, 9):
                 ['output_projection']) = True
     configs[i]['name'] = 'bL16_4xTr_MhaOutProj_g(x,y)*y+x_' + \
         'MhaPoolVnLin_MaxPool_4096d_Snli_'+str(i)
-# ------------------------------- Config 09-12 --------------------------------
-for i in range(9, 13):
+# ------------------------------- Config 08-11 --------------------------------
+for i in range(8, 12):
     configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = ''
     configs[i]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
         'MhaPool_MaxPool_4096d_Snli_'+str(i)
-# ------------------------------- Config 13-17 --------------------------------
-for i in range(13, 18):
+# ------------------------------- Config 12-15 --------------------------------
+for i in range(12, 16):
     configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = ''
     (configs[i]['sentence_encoder']['pooling']['mha']
             ['output_projection']) = True
     configs[i]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
         'MhaPoolOutProj_MaxPool_4096d_Snli_'+str(i)
-# ------------------------------- Config 18-21 --------------------------------
-for i in range(18, 22):
+# ------------------------------- Config 16-19 --------------------------------
+for i in range(16, 20):
     configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'mha'
     configs[i]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
         'MhaPoolVmha_MaxPool_4096d_Snli_'+str(i)
-# ------------------------------- Config 22-25 --------------------------------
-for i in range(22, 26):
+# ------------------------------- Config 20-23 --------------------------------
+for i in range(20, 24):
     configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
     (configs[i]['sentence_encoder']['transformer']['mha_modifications']
                 ['output_mha']) = True
@@ -138,7 +144,26 @@ for i in range(22, 26):
                 ['output_mha_num_heads']) = 16
     configs[i]['name'] = 'bL16_4xTr_MhaMha16hFfn_g(x,y)*y+x_' + \
         'MhaPoolVnLin_MaxPool_4096d_Snli_'+str(i)
-
+# ------------------------------- Config 24-27 --------------------------------
+for i in range(24, 28):
+    configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
+    configs[i]['sentence_encoder']['transformer']['normalization_position'] = \
+        'pre'
+    configs[i]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_TrPreNorm_' + \
+        'MhaPoolVnLin_MaxPool_4096d_Snli_'+str(i)
+# ------------------------------- Config 28-31 --------------------------------
+for i in range(28, 32):
+    configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
+    configs[i]['sentence_encoder']['transformer']['kernel_constraint'] = \
+        tf.keras.constraints.UnitNorm(axis=0)
+    (configs[i]['sentence_encoder']['transformer']['mha_modifications']
+        ['kernel_constraint']) = tf.keras.constraints.UnitNorm(axis=0)
+    (configs[i]['sentence_encoder']['transformer']['ffn_modifications']
+        ['kernel_constraint']) = tf.keras.constraints.UnitNorm(axis=0)
+    configs[i]['classifier_network']['kernel_constraint'] = \
+        tf.keras.constraints.UnitNorm(axis=0)
+    configs[i]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
+        'MhaPoolVnLin_MaxPool_4096d_kConstUnit_Snli_'+str(i)
 
 task = 'Snli'
 if task != 'Snli':

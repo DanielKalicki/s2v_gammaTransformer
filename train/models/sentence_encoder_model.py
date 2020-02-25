@@ -55,6 +55,12 @@ class SentenceEncoderModel(tf.keras.Model):
             'kernel_initializer': (self.config['sentence_encoder']
                                               ['transformer']
                                               ['kernel_initializer']),
+            'kernel_constraint': (self.config['sentence_encoder']
+                                             ['transformer']
+                                             ['kernel_constraint']),
+            'normalization_position': (self.config['sentence_encoder']
+                                                  ['transformer']
+                                                  ['normalization_position']),
             'gate_type': (self.config['sentence_encoder']['transformer']
                                      ['gate_type']),
             'mha_modifications': (self.config['sentence_encoder']
@@ -98,6 +104,9 @@ class SentenceEncoderModel(tf.keras.Model):
                 'kernel_initializer': (self.config['sentence_encoder']
                                                   ['pooling']['mha']
                                                   ['kernel_initializer']),
+                'kernel_constraint': (self.config['sentence_encoder']
+                                                 ['pooling']['mha']
+                                                 ['kernel_constraint']),
                 'use_dense_connection': (self.config['sentence_encoder']
                                                     ['pooling']['mha']
                                                     ['use_dense_connection']),

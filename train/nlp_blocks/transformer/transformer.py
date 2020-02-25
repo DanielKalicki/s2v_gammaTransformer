@@ -19,18 +19,6 @@ from nlp_blocks.transformer.funcs import gelu
 class MultiHeadSelfAttention:
     """
     Multi Head Self Attention implementation used in Transformer architecture.
-
-    Architecture:
-          +-------+      +-------+
-          |       +----->+       |     +----------+     +-------+
-          |       |    q |       |     |          |     |       |
-          |       |      |       |     |Activation|     |       |
-    +---->+ Dense +----->+  MHA  +---->+function  +---->+ Dense +---->
-     x    |       |    k |       |     |    *     |     |   *   |   y
-          |       |      |       |     |          |     |       |
-          |       +----->+       |     +----------+     +-------+
-          +-------+    v +-------+
-    * - optional
     """
     def __init__(self, n_state: int, n_head: int, attention_dropout: float,
                  use_attn_mask: bool, layer_id: int, neg_inf: float,
@@ -44,11 +32,14 @@ class MultiHeadSelfAttention:
         self.out_mha = False
         self.use_bias = False,
         self.kernel_initializer = 'glorot_uniform'
+        self.kernel_initializer = None
 
         if ('use_bias' in modifications) and (modifications['use_bias']):
             self.use_bias = True
         if 'kernel_initializer' in modifications:
             self.kernel_initializer = modifications['kernel_initializer']
+        if 'kernel_constraint' in modifications:
+            self.kernel_constraint = modifications['kernel_constraint']
 
         mha_dim = n_state
         if 'inner_dim' in modifications:
@@ -56,6 +47,7 @@ class MultiHeadSelfAttention:
 
         self.c_attn = Dense(3 * mha_dim, use_bias=self.use_bias,
                             kernel_initializer=self.kernel_initializer,
+                            kernel_constraint=self.kernel_constraint,
                             name='layer_{}/c_attn'.format(layer_id))
 
         self.attn = MultiHeadAttention(n_head, mha_dim, attention_dropout,
@@ -76,7 +68,8 @@ class MultiHeadSelfAttention:
             self.hidd_layer = True
             self.hidd_dim = modifications['hidden_dim']
             self.c_attn_hidd = Dense(self.hidd_dim, use_bias=self.use_bias,
-                                    kernel_initializer=self.kernel_initializer,
+                                     kernel_initializer=self.kernel_initializer,
+                                     kernel_constraint=self.kernel_constraint,
                                      name='layer_{}/c_attn_hidd'
                                           .format(layer_id))
             if ('hidden_activation' in modifications) \
@@ -92,6 +85,7 @@ class MultiHeadSelfAttention:
             self.out_mha = True
             self.c_out_attn = Dense(3 * n_state, use_bias=self.use_bias,
                                     kernel_initializer=self.kernel_initializer,
+                                    kernel_constraint=self.kernel_constraint,
                                     name='layer_{}/c_out_attn'
                                          .format(layer_id))
             self.out_attn = MultiHeadAttention((modifications
@@ -106,6 +100,7 @@ class MultiHeadSelfAttention:
             self.out_proj = True
             self.c_attn_proj = Dense(n_state, use_bias=self.use_bias,
                                      kernel_initializer=self.kernel_initializer,
+                                     kernel_constraint=self.kernel_constraint,
                                      name='layer_{}/c_attn_proj'
                                           .format(layer_id))
 
@@ -140,18 +135,23 @@ class PositionWiseFF:
                  accurate_gelu: bool, modifications={}) -> None:
         self.use_bias = False
         self.kernel_initializer = 'glorot_uniform'
+        self.kernel_initializer = None
         if ('use_bias' in modifications) and (modifications['use_bias']):
             self.use_bias = True
         if 'kernel_initializer' in modifications:
             self.kernel_initializer = modifications['kernel_initializer']
+        if 'kernel_constraint' in modifications:
+            self.kernel_constraint = modifications['kernel_constraint']
 
         self.c_fc = Dense(d_hid, use_bias=self.use_bias,
                           kernel_initializer=self.kernel_initializer,
+                          kernel_constraint=self.kernel_constraint,
                           name='layer_{}/c_fc'.format(layer_id))
         self.activation = Gelu(accurate=accurate_gelu,
                                name='layer_{}/gelu'.format(layer_id))
         self.c_ffn_proj = Dense(n_state, use_bias=self.use_bias,
                                 kernel_initializer=self.kernel_initializer,
+                                kernel_constraint=self.kernel_constraint,
                                 name='layer_{}/c_ffn_proj'.format(layer_id))
 
     def __call__(self, x):
@@ -166,12 +166,15 @@ class GatedEncoderLayer:
                  residual_dropout: float, attention_dropout: float,
                  use_attn_mask: bool, layer_id: int, neg_inf: float,
                  ln_epsilon: float, accurate_gelu: bool,
-                 kernel_initializer,
+                 kernel_initializer, kernel_constraint,
+                 normalization_position='post',
                  gate_type='None', mha_modifications={},
                  ffn_modifications={}) -> None:
         self.gate_type = gate_type
         self.ffn_layer = ffn_modifications['ffn_layer']
         self.kernel_initializer = kernel_initializer
+        self.kernel_constraint = kernel_constraint
+        self.normalization_position = normalization_position
 
         self.attention = MultiHeadSelfAttention(n_state, n_head,
                                                 attention_dropout,
@@ -193,23 +196,27 @@ class GatedEncoderLayer:
         if self.gate_type != 'None':
             self.gate1_dense = Dense(n_state, use_bias=True,
                                      kernel_initializer=self.kernel_initializer,
+                                     kernel_constraint=self.kernel_constraint,
                                      activation=tf.keras.backend.sigmoid,
                                      name='layer_{}/gate1'.format(layer_id))
             if self.ffn_layer:
                 self.gate2_dense = Dense(n_state, use_bias=True,
                                          kernel_initializer=self.kernel_initializer,
+                                         kernel_constraint=self.kernel_constraint,
                                          activation=tf.keras.backend.sigmoid,
                                          name='layer_{}/gate2'
                                               .format(layer_id))
             if self.gate_type == 'Wg(y)*tanh(Ug(y)) + x':
                 self.gate1_Ug = Dense(n_state, use_bias=False,
                                       kernel_initializer=self.kernel_initializer,
+                                      kernel_constraint=self.kernel_constraint,
                                       activation=tf.keras.backend.tanh,
                                       name='layer_{}/gate1_Ug'
                                            .format(layer_id))
                 if self.ffn_layer:
                     self.gate2_Ug = Dense(n_state, use_bias=False,
                                           kernel_initializer=self.kernel_initializer,
+                                          kernel_constraint=self.kernel_constraint,
                                           activation=tf.keras.backend.tanh,
                                           name='layer_{}/gate2_Ug'
                                                .format(layer_id))
@@ -237,14 +244,10 @@ class GatedEncoderLayer:
         return gate*x + drop((1-gate)*y)
 
     def __call__(self, x, mask):
-        #          +-----+  y
-        #    +---->+ MHA +------+
-        #    |     +-----+      |
-        #    |                  v
-        #    |               +--+---+     +----+
-        # +--+-------------->+ Gate +---->+ LN +---->
-        # x                  +------+     +----+    x
-        y = self.attention(x, mask)
+        xSubLayer = x
+        if self.normalization_position == 'pre':
+            xSubLayer = self.ln1(x)
+        y = self.attention(xSubLayer, mask)
 
         if self.gate_type in ['Wg(x)*y + x', 'Wg(x,y)*y + x']:
             x = self.gate_output(x, y, self.gate1_dense, self.drop1)
@@ -258,17 +261,14 @@ class GatedEncoderLayer:
         elif self.gate_type == 'None':
             x = x + self.drop1(y)
 
-        x = self.ln1(x)
+        if self.normalization_position == 'post':
+            x = self.ln1(x)
 
         if self.ffn_layer:
-            #          +-----+  y
-            #    +---->+ FFN +------+
-            #    |     +-----+      |
-            #    |                  v
-            #    |               +--+---+     +----+
-            # +--+-------------->+ Gate +---->+ LN +---->
-            # x                  +------+     +----+    x
-            y = self.ffn(x)
+            xSubLayer = x
+            if self.normalization_position == 'pre':
+                xSubLayer = self.ln2(x)
+            y = self.ffn(xSubLayer)
 
             if self.gate_type in ['Wg(x)*y + x', 'Wg(x,y)*y + x']:
                 x = self.gate_output(x, y, self.gate2_dense, self.drop2)
@@ -282,7 +282,8 @@ class GatedEncoderLayer:
             elif self.gate_type == 'None':
                 x = x + self.drop2(y)
 
-            x = self.ln2(x)
+            if self.normalization_position == 'post':
+                x = self.ln2(x)
 
         return x
 
@@ -295,7 +296,10 @@ def create_gated_transformer(embedding_dim: int = 768, max_len: int = 512,
                              use_attn_mask: bool = True, neg_inf: float = -1e9,
                              layer_norm_epsilon: float = 1e-5,
                              kernel_initializer='glorot_uniform',
-                             accurate_gelu: bool = True, gate_type='None',
+                             kernel_constraint=None,
+                             accurate_gelu: bool = True,
+                             normalization_position='post',
+                             gate_type='None',
                              mha_modifications={}, ffn_modifications={}
                              ) -> tensorflow.keras.Model:
 
@@ -317,6 +321,8 @@ def create_gated_transformer(embedding_dim: int = 768, max_len: int = 512,
                               residual_dropout, attention_dropout,
                               use_attn_mask, i, neg_inf, layer_norm_epsilon,
                               accurate_gelu, kernel_initializer,
+                              kernel_constraint,
+                              normalization_position,
                               gate_type, mha_modifications,
                               ffn_modifications)(x, attn_mask)
     if use_attn_mask:
@@ -329,58 +335,51 @@ class MultiHeadSelfAttentionPool:
     """
     Modified Multi Head Attention used to expand the word embeddings before
         pooling.
-
-    Architecture:
-         +-------+                               +-------+
-         |       +------------------------------>+       |   +------------+
-         |       |                             q |       |   |            |
-         |       |                               |       |   | Output     |
-    +--->+ Dense +------------------------------>+  MHA  +-->+ Projection +--->
-      x  |       |   +----------+   +-------+  k |       |   |     *      |  y
-         |       |   |          |   |       |    |       |   |            |
-         |       +-->+Activation+-->+ Dense +--->+       |   +------------+
-         +-------+   |function  |   |   *   |  v +-------+
-                     |    *     |   +-------+
-                     +----------+
-     * - optional
-
     """
     def __init__(self, n_state: int, n_head: int, attention_dropout: float,
                  use_attn_mask: bool, layer_id: int, neg_inf: float,
                  output_projection: bool, output_dim: int,
-                 input_ffn, input_ffn_dim: int, kernel_initializer
+                 input_ffn, input_ffn_dim: int, kernel_initializer,
+                 kernel_constraint
                  ) -> None:
         assert n_state % n_head == 0
         self.n_state = n_state
         self.output_projection = output_projection
         self.input_ffn = input_ffn
         self.kernel_initializer = kernel_initializer
+        self.kernel_constraint = kernel_constraint
 
         self.c_att_q = Dense(n_state, use_bias=False, activation=None,
                              kernel_initializer=self.kernel_initializer,
+                             kernel_constraint=self.kernel_constraint,
                              name='layer_{}/c_att_q'.format(layer_id))
         self.c_att_k = Dense(n_state, use_bias=False, activation=None,
                              kernel_initializer=self.kernel_initializer,
+                             kernel_constraint=self.kernel_constraint,
                              name='layer_{}/c_att_k'.format(layer_id))
         self.c_att_v = Dense(n_state if 'mha' not in self.input_ffn
                              else 3*n_state, use_bias=False, activation=None,
                              kernel_initializer=self.kernel_initializer,
+                             kernel_constraint=self.kernel_constraint,
                              name='layer_{}/c_att_v'.format(layer_id))
 
         if 'q' in input_ffn:
             self.c_att_q2 = Dense(input_ffn_dim, use_bias=False,
                                   activation=gelu,
                                   kernel_initializer=self.kernel_initializer,
+                                  kernel_constraint=self.kernel_constraint,
                                   name='layer_{}/c_att_q2'.format(layer_id))
         if 'k' in input_ffn:
             self.c_att_k2 = Dense(input_ffn_dim, use_bias=False,
                                   activation=gelu,
                                   kernel_initializer=self.kernel_initializer,
+                                  kernel_constraint=self.kernel_constraint,
                                   name='layer_{}/c_att_k2'.format(layer_id))
         if 'v' in input_ffn:
             self.c_att_v2 = Dense(input_ffn_dim, use_bias=False,
                                   activation=gelu,
                                   kernel_initializer=self.kernel_initializer,
+                                  kernel_constraint=self.kernel_constraint,
                                   name='layer_{}/c_att_v2'.format(layer_id))
         if 'mha' in input_ffn:
             self.attn_v2 = MultiHeadAttention(n_head, n_state,
@@ -396,6 +395,7 @@ class MultiHeadSelfAttentionPool:
         if self.output_projection:
             self.c_attn_proj = Dense(output_dim, use_bias=False,
                                      kernel_initializer=self.kernel_initializer,
+                                     kernel_constraint=self.kernel_constraint,
                                      name='layer_{}/c_attn_proj'
                                           .format(layer_id))
 
@@ -425,22 +425,25 @@ class MhaPoolLayer:
                  use_attn_mask: bool, layer_id: int, neg_inf: float,
                  output_projection: bool, output_dim: int,
                  input_ffn, input_ffn_dim: int, gated_ffn: bool,
-                 kernel_initializer
+                 kernel_initializer, kernel_constraint
                  ) -> None:
         self.gated_ffn = gated_ffn
         self.kernel_initializer = kernel_initializer
+        self.kernel_constraint = kernel_constraint
         self.attention = MultiHeadSelfAttentionPool(n_state, n_head,
                                                     attention_dropout,
                                                     use_attn_mask, layer_id,
                                                     neg_inf, output_projection,
                                                     output_dim,
                                                     input_ffn, input_ffn_dim,
-                                                    kernel_initializer)
+                                                    kernel_initializer,
+                                                    kernel_constraint)
         if self.gated_ffn:
             self.ffn = PositionWiseFF(n_state, n_state, layer_id, True)
             self.gate = Dense(n_state, use_bias=True,
                               activation=tf.keras.backend.sigmoid,
                               kernel_initializer=self.kernel_initializer,
+                              kernel_constraint=self.kernel_constraint,
                               name='layer_{}/mha_pool_gate'.format(layer_id),
                               modifications={'use_bias': False})
 
@@ -459,6 +462,7 @@ def create_mha_pool(embedding_dim: int = 768, max_len: int = 512,
                     output_projection: bool = False, output_dim: int = 768,
                     input_ffn=None, input_ffn_dim=768, gated_ffn: bool = False,
                     kernel_initializer='glorot_uniform',
+                    kernel_constraint=None,
                     use_dense_connection: bool = False
                     ) -> tensorflow.keras.Model:
     input_ = Input(batch_shape=(None, max_len, embedding_dim),
@@ -472,7 +476,7 @@ def create_mha_pool(embedding_dim: int = 768, max_len: int = 512,
         out = MhaPoolLayer(internal_dim, num_heads, attention_dropout,
                            use_attn_mask, i, neg_inf, output_projection,
                            output_dim, input_ffn, input_ffn_dim, gated_ffn,
-                           kernel_initializer
+                           kernel_initializer, kernel_constraint
                            )(x, attn_mask)
         if use_dense_connection:
             x = tf.keras.backend.concatenate([x, out], axis=2)

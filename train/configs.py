@@ -19,7 +19,7 @@ default_config = {
             'attention_dropout': 0.0,
             'kernel_initializer': tf.keras.initializers.glorot_uniform,
             'kernel_constraint': None,
-            'normalization_position': 'post',  # pre or post normalization
+            'normalization_position': 'post',  # pre, preMod or post normalization
                                                # https://openreview.net/pdf?id=B1x8anVFPr
             'gate_type': 'Wg(x,y)*y + x',  # 'None' - Residual connections
                                            # 'Wg(x)*y + x'
@@ -27,6 +27,7 @@ default_config = {
                                            # 'Wg(y)*tanh(Ug(y)) + x'
                                            # 'Wg(x)*x + y'
                                            # 'Wg(x)*x + (1-Wg(x))*y'
+                                           # 'Ffn(x,y)*y + x'
             'mha_modifications': {
                 'use_bias': False,
                 'kernel_initializer': tf.keras.initializers.glorot_uniform,
@@ -163,6 +164,36 @@ for i in range(28, 32):
     configs[i]['classifier_network']['kernel_constraint'] = \
         tf.keras.constraints.UnitNorm(axis=0)
     configs[i]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
+        'MhaPoolVnLin_MaxPool_4096d_kConstUnit_Snli_'+str(i)
+# ------------------------------- Config 32-35 --------------------------------
+for i in range(32, 36):
+    configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
+    configs[i]['sentence_encoder']['transformer']['gate_type'] = \
+        'Ffn(x,y)*y + x'
+    configs[i]['sentence_encoder']['transformer']['kernel_constraint'] = \
+        tf.keras.constraints.UnitNorm(axis=0)
+    (configs[i]['sentence_encoder']['transformer']['mha_modifications']
+        ['kernel_constraint']) = tf.keras.constraints.UnitNorm(axis=0)
+    (configs[i]['sentence_encoder']['transformer']['ffn_modifications']
+        ['kernel_constraint']) = tf.keras.constraints.UnitNorm(axis=0)
+    configs[i]['classifier_network']['kernel_constraint'] = \
+        tf.keras.constraints.UnitNorm(axis=0)
+    configs[i]['name'] = 'bL16_4xTr_MhaFfn_Ffn(x,y)*y+x_' + \
+        'MhaPoolVnLin_MaxPool_4096d_kConstUnit_Snli_'+str(i)
+# ------------------------------- Config 36-39 --------------------------------
+for i in range(36, 40):
+    configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
+    configs[i]['sentence_encoder']['transformer']['gate_type'] = \
+        'STE(x,y)*y + x'
+    configs[i]['sentence_encoder']['transformer']['kernel_constraint'] = \
+        tf.keras.constraints.UnitNorm(axis=0)
+    (configs[i]['sentence_encoder']['transformer']['mha_modifications']
+        ['kernel_constraint']) = tf.keras.constraints.UnitNorm(axis=0)
+    (configs[i]['sentence_encoder']['transformer']['ffn_modifications']
+        ['kernel_constraint']) = tf.keras.constraints.UnitNorm(axis=0)
+    configs[i]['classifier_network']['kernel_constraint'] = \
+        tf.keras.constraints.UnitNorm(axis=0)
+    configs[i]['name'] = 'bL16_4xTr_MhaFfn_STE(x,y)*y+x_' + \
         'MhaPoolVnLin_MaxPool_4096d_kConstUnit_Snli_'+str(i)
 
 task = 'Snli'

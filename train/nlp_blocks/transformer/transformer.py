@@ -220,6 +220,54 @@ class GatedEncoderLayer:
                                           activation=tf.keras.backend.tanh,
                                           name='layer_{}/gate2_Ug'
                                                .format(layer_id))
+            if self.gate_type == 'Ffn(x,y)*y + x':
+                self.gate1h_dense = Dense(n_state*2, use_bias=True,
+                                          kernel_initializer=self.kernel_initializer,
+                                          kernel_constraint=self.kernel_constraint,
+                                          activation=gelu,
+                                          name='layer_{}/gate1h'.format(layer_id))
+                if self.ffn_layer:
+                    self.gate2h_dense = Dense(n_state*2, use_bias=True,
+                                              kernel_initializer=self.kernel_initializer,
+                                              kernel_constraint=self.kernel_constraint,
+                                              activation=gelu,
+                                              name='layer_{}/gate2h'
+                                                   .format(layer_id))
+            if self.gate_type == 'STE(x,y)*y + x':
+                self.gate1_ste1_dense = Dense(n_state, use_bias=True,
+                                         kernel_initializer=self.kernel_initializer,
+                                         kernel_constraint=self.kernel_constraint,
+                                         activation=tf.keras.backend.sigmoid,
+                                         name='layer_{}/gate1_ste1'.format(layer_id))
+                self.gate1_ste2_dense = Dense(n_state, use_bias=True,
+                                         kernel_initializer=self.kernel_initializer,
+                                         kernel_constraint=self.kernel_constraint,
+                                         activation=tf.keras.backend.sigmoid,
+                                         name='layer_{}/gate1_ste2'.format(layer_id))
+                self.gate1_ste3_dense = Dense(n_state, use_bias=True,
+                                         kernel_initializer=self.kernel_initializer,
+                                         kernel_constraint=self.kernel_constraint,
+                                         activation=tf.keras.backend.sigmoid,
+                                         name='layer_{}/gate1_ste3'.format(layer_id))
+                if self.ffn_layer:
+                    self.gate2_ste1_dense = Dense(n_state, use_bias=True,
+                                             kernel_initializer=self.kernel_initializer,
+                                             kernel_constraint=self.kernel_constraint,
+                                             activation=tf.keras.backend.sigmoid,
+                                             name='layer_{}/gate2_ste1'
+                                                  .format(layer_id))
+                    self.gate2_ste2_dense = Dense(n_state, use_bias=True,
+                                             kernel_initializer=self.kernel_initializer,
+                                             kernel_constraint=self.kernel_constraint,
+                                             activation=tf.keras.backend.sigmoid,
+                                             name='layer_{}/gate2_ste2'
+                                                  .format(layer_id))
+                    self.gate2_ste3_dense = Dense(n_state, use_bias=True,
+                                             kernel_initializer=self.kernel_initializer,
+                                             kernel_constraint=self.kernel_constraint,
+                                             activation=tf.keras.backend.sigmoid,
+                                             name='layer_{}/gate2_ste3'
+                                                  .format(layer_id))
 
     def gate_output(self, x, y, g_dense, drop):
         if self.gate_type == 'Wg(x)*y + x':
@@ -229,6 +277,22 @@ class GatedEncoderLayer:
             # g(x, y) = σ(Wg*(x||y) + b)*y + x
             g_var = tf.keras.backend.concatenate([x, y], axis=2)
         return drop(g_dense(g_var) * y) + x
+
+    def gate_output_ffn(self, x, y, g_dense, g_dense_hid, drop):
+        g_var = tf.keras.backend.concatenate([x, y], axis=2)
+        return drop(g_dense(g_dense_hid(g_var)) * y) + x
+
+    def gate_output_ste(self, x, y, g_dense1, g_dense2, g_dense3, g_dense4,
+                        drop, ste_drop1, ste_drop2, ste_drop3, ste_drop4):
+        g_var = tf.keras.backend.concatenate([x, y], axis=2)
+
+        ste1 = ste_drop1(g_dense1(g_var))
+        ste2 = ste_drop2(g_dense2(g_var))
+        ste3 = ste_drop3(g_dense3(g_var))
+        ste4 = ste_drop4(g_dense4(g_var))
+        ste = (ste1 + ste2 + ste3 + ste4)/4
+
+        return drop(ste * y) + x
 
     def gate_sigmoid_tanh(self, x, y, g1_dense, g2_dense, drop):
         # g(x, y) = σ(Wg*y + b)*tanh(Ug*y) + x
@@ -244,6 +308,8 @@ class GatedEncoderLayer:
         return gate*x + drop((1-gate)*y)
 
     def __call__(self, x, mask):
+        if self.normalization_position == 'preMod':
+            x = self.ln1(x)
         xSubLayer = x
         if self.normalization_position == 'pre':
             xSubLayer = self.ln1(x)
@@ -251,6 +317,17 @@ class GatedEncoderLayer:
 
         if self.gate_type in ['Wg(x)*y + x', 'Wg(x,y)*y + x']:
             x = self.gate_output(x, y, self.gate1_dense, self.drop1)
+        elif self.gate_type == 'Ffn(x,y)*y + x':
+            x = self.gate_output_ffn(x, y, self.gate1_dense, self.gate1h_dense,
+                                     self.drop1)
+        elif self.gate_type == 'STE(x,y)*y + x':
+            x = self.gate_output_ste(x, y, self.gate1_dense,
+                                     self.gate1_ste1_dense,
+                                     self.gate1_ste2_dense,
+                                     self.gate1_ste3_dense,
+                                     self.drop1,
+                                     self.drop1_ste0, self.drop1_ste1,
+                                     self.drop1_ste2, self.drop1_ste3)
         elif self.gate_type == 'Wg(y)*tanh(Ug(y)) + x':
             x = self.gate_sigmoid_tanh(x, y, self.gate1_dense, self.gate1_Ug,
                                        self.drop1)
@@ -266,12 +343,24 @@ class GatedEncoderLayer:
 
         if self.ffn_layer:
             xSubLayer = x
-            if self.normalization_position == 'pre':
+            if (self.normalization_position == 'pre') or \
+               (self.normalization_position == 'preMod'):
                 xSubLayer = self.ln2(x)
             y = self.ffn(xSubLayer)
 
             if self.gate_type in ['Wg(x)*y + x', 'Wg(x,y)*y + x']:
                 x = self.gate_output(x, y, self.gate2_dense, self.drop2)
+            elif self.gate_type == 'Ffn(x,y)*y + x':
+                x = self.gate_output_ffn(x, y, self.gate2_dense, self.gate2h_dense,
+                                         self.drop2)
+            elif self.gate_type == 'STE(x,y)*y + x':
+                x = self.gate_output_ste(x, y, self.gate2_dense,
+                                         self.gate2_ste1_dense,
+                                         self.gate2_ste2_dense,
+                                         self.gate2_ste3_dense,
+                                         self.drop2,
+                                         self.drop2_ste0, self.drop2_ste1,
+                                         self.drop2_ste2, self.drop2_ste3)
             elif self.gate_type == 'Wg(y)*tanh(Ug(y)) + x':
                 x = self.gate_sigmoid_tanh(x, y, self.gate2_dense,
                                            self.gate2_Ug, self.drop2)
@@ -305,7 +394,8 @@ def create_gated_transformer(embedding_dim: int = 768, max_len: int = 512,
 
     if gate_type not in ['None', 'Wg(x)*y + x', 'Wg(x,y)*y + x',
                          'Wg(y)*tanh(Ug(y)) + x', 'Wg(x)*x + y',
-                         'Wg(x)*x + (1-Wg(x))*y']:
+                         'Wg(x)*x + (1-Wg(x))*y', 'Ffn(x,y)*y + x',
+                         'STE(x,y)*y + x']:
         raise ValueError('Unknown config.sentence_encoder.transformer.'
                          + 'gate_type.')
 

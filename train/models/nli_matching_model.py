@@ -1,7 +1,7 @@
 import tensorflow as tf
 from nlp_blocks.transformer.funcs import gelu
 from nlp_blocks.transformer.layers import LayerNormalization
-
+from nlp_blocks.nac import NAC
 
 def mish(inputs):
     return inputs * tf.keras.activations.tanh(
@@ -26,6 +26,8 @@ class NliClassifierModel(tf.keras.Model):
                                               ['kernel_initializer'])
         self.kernel_constraint = (self.config['classifier_network']
                                              ['kernel_constraint'])
+        self.gated = self.config['classifier_network']['gated']
+        self.shortcut = self.config['classifier_network']['shortcut']
         if self.h_activation == 'gelu':
             self.h_activation = gelu
         elif self.h_activation == 'mish':
@@ -34,10 +36,15 @@ class NliClassifierModel(tf.keras.Model):
         self.pred_activation = (self.config['classifier_network']
                                            ['prediction_activation'])
 
-        self.fc_l1 = tf.keras.layers.Dense(self.h_dim,
-                                           kernel_initializer=self.kernel_initializer,
-                                           kernel_constraint=self.kernel_constraint,
-                                           activation=None)
+        if not self.config['classifier_network']['hidden_nac']:
+            self.fc_l1 = tf.keras.layers.Dense(self.h_dim,
+                                               kernel_initializer=self.kernel_initializer,
+                                               kernel_constraint=self.kernel_constraint,
+                                               activation=None)
+        else:
+            self.fc_l1 = NAC(self.h_dim)
+
+
         if self.h_ln:
             self.fc_l1_ln = LayerNormalization(1e-5)
         self.fc_l1_act = self.h_activation
@@ -48,13 +55,24 @@ class NliClassifierModel(tf.keras.Model):
             kernel_constraint=self.kernel_constraint,
             activation=self.pred_activation)
 
+        if self.gated:
+            self.gfc_l1 = tf.keras.layers.Dense(self.h_dim,
+                                                kernel_initializer=self.kernel_initializer,
+                                                kernel_constraint=self.kernel_constraint,
+                                                activation=tf.keras.backend.sigmoid)
+
     def call(self, sent1, sent2):
         x_vec = tf.keras.backend.concatenate(
             [sent1, sent2, tf.math.abs(sent1 - sent2), sent1 * sent2], axis=1)
         x = self.fc_l1(x_vec)
         if self.h_ln:
             x = self.fc_l1_ln(x)
-        x = self.fc_l1_act(x)
+        if self.gated:
+            x = x*self.gfc_l1(x_vec)
+        else:
+            x = self.fc_l1_act(x)
+        if self.shortcut:
+            x = tf.keras.backend.concatenate([x_vec, x], axis=1)
         x = self.fc_drop(x)
         prediction = self.prediction(x)
 

@@ -3,6 +3,7 @@ from tensorflow.keras.layers import Dropout, Dense
 from nlp_blocks.transformer.transformer import (create_mha_pool,
                                                 create_gated_transformer)
 from nlp_blocks.transformer.funcs import gelu
+from nlp_blocks.transformer.layers import LayerNormalization
 
 
 class SentenceEncoderModel(tf.keras.Model):
@@ -27,6 +28,8 @@ class SentenceEncoderModel(tf.keras.Model):
                                               ['pooling_activation'])
         if self.pooling_activation == 'gelu':
             self.pooling_activation = gelu
+        elif self.pooling_activation == 'layer_norm':
+            self.pooling_activation = LayerNormalization(1e-5, name='pool_norm')
         self.pooling_function = (self.config['sentence_encoder']['pooling']
                                             ['pooling_function'])
         self.pool_projection = (self.config['sentence_encoder']
@@ -36,6 +39,12 @@ class SentenceEncoderModel(tf.keras.Model):
 
         self.input_drop = Dropout(self.config['sentence_encoder']
                                              ['input_drop'])
+        self.pooling_in_drop = Dropout(self.config['sentence_encoder']
+                                                  ['pooling']
+                                                  ['pooling_in_dropout'])
+        self.pooling_out_drop = Dropout(self.config['sentence_encoder']
+                                                   ['pooling']
+                                                   ['pooling_out_dropout'])
 
         gtr_params = {
             'max_len': max_sent_len,
@@ -168,6 +177,11 @@ class SentenceEncoderModel(tf.keras.Model):
             sent_out = tf.keras.backend.concatenate([sent_out, sent], axis=2)
 
         # ---------------------------------------------------------------------
+        # Dropout before expanding and mixing
+        # ---------------------------------------------------------------------
+        sent_out = self.pooling_in_drop(sent_out)
+
+        # ---------------------------------------------------------------------
         # Pooling preparation - expanding and mixing
         # ---------------------------------------------------------------------
         if self.pooling_method == 'mha':
@@ -186,6 +200,11 @@ class SentenceEncoderModel(tf.keras.Model):
         # ---------------------------------------------------------------------
         if self.pooling_activation:
             sent_pool = self.pooling_activation(sent_pool)
+
+        # ---------------------------------------------------------------------
+        # Dropout before Pool
+        # ---------------------------------------------------------------------
+        sent_pool = self.pooling_out_drop(sent_pool)
 
         # ---------------------------------------------------------------------
         # Pool function - mean or max

@@ -3,6 +3,8 @@ import os
 import shutil
 
 from batchers.snli_batch import SnliBatch
+from batchers.mnli_batch import MnliBatch
+from batchers.anli_batch import AnliBatch
 from batchers.qnli_batch import QnliBatch
 from batchers.paws_batch import PawsBatch
 from models.sentence_encoder_model import SentenceEncoderModel
@@ -97,6 +99,12 @@ elif config['training']['task'] == 'qnli':
 elif config['training']['task'] == 'paws':
     generator_train = PawsBatch(config)
     generator_valid = PawsBatch(config, valid=True)
+elif config['training']['task'] == 'mnli':
+    generator_train = MnliBatch(config)
+    generator_valid = MnliBatch(config, valid=True)
+elif config['training']['task'] == 'anli':
+    generator_train = AnliBatch(config)
+    generator_valid = AnliBatch(config, valid=True)
 
 # -----------------------------------------------------------------------------
 # Training callbacks

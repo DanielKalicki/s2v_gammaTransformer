@@ -28,6 +28,9 @@ default_config = {
                                            # 'Wg(x)*x + y'
                                            # 'Wg(x)*x + (1-Wg(x))*y'
                                            # 'Ffn(x,y)*y + x'
+                                           # 'FfnNac(x,y)*y + x'
+                                           # 'Mha(x,y)*y + x'
+                                           # 'STE(x,y)*y + x'
             'mha_modifications': {
                 'use_bias': False,
                 'kernel_initializer': tf.keras.initializers.glorot_uniform,
@@ -44,6 +47,9 @@ default_config = {
             'ffn_modifications': {
                 'use_bias': False,
                 'ffn_layer': True,
+                'gated': False,
+                'small_ffn': False,
+                'nac': False
             }
         },
         'pooling': {
@@ -64,13 +70,17 @@ default_config = {
                 'output_projection': False,
                 'output_dim': 4096,  # used only if output_projection = True
                 'input_ffn': '',  # None, q, k, v or any combination
+                                  # STE Q, K, V or any combination
                 'input_ffn_dim': 4096,  # used only if input_ffn != None
                 'gated_ffn': False,
+                'input_concat': False,
                 'kernel_initializer': tf.keras.initializers.glorot_uniform,
                 'kernel_constraint': None,
                 'use_dense_connection': False,
             },
             'pooling_activation': None,  # activation function used before pool
+            'pooling_in_dropout': 0.0,
+            'pooling_out_dropout': 0.0,
             'pooling_function': 'max',  # ['mean', 'max', 'l2', 'mean_max']
         },
         'pool_projection': False,  # if True pooling output will be projected
@@ -81,11 +91,14 @@ default_config = {
         'hidden_dim': 512,
         'hidden_layer_cnt': 1,
         'dropout': 0.0,
+        'hidden_nac': False,
         'hidden_layer_norm': False,
         'hidden_activation': 'gelu',
         'prediction_activation': tf.keras.activations.softmax,
         'kernel_initializer': tf.keras.initializers.glorot_uniform,
         'kernel_constraint': None,
+        'gated': False,
+        'shortcut': False,
         'num_classes': 3
     },
 
@@ -148,56 +161,70 @@ for i in range(20, 24):
 # ------------------------------- Config 24-27 --------------------------------
 for i in range(24, 28):
     configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
-    configs[i]['sentence_encoder']['transformer']['normalization_position'] = \
-        'pre'
-    configs[i]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_TrPreNorm_' + \
+    configs[i]['sentence_encoder']['transformer']['gate_type'] = \
+        'Ffn(x,y)*y + x'
+    configs[i]['name'] = 'bL16_4xTr_MhaFfn_Ffn(x,y)*y+x_' + \
         'MhaPoolVnLin_MaxPool_4096d_Snli_'+str(i)
 # ------------------------------- Config 28-31 --------------------------------
-for i in range(28, 32):
-    configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
-    configs[i]['sentence_encoder']['transformer']['kernel_constraint'] = \
-        tf.keras.constraints.UnitNorm(axis=0)
-    (configs[i]['sentence_encoder']['transformer']['mha_modifications']
-        ['kernel_constraint']) = tf.keras.constraints.UnitNorm(axis=0)
-    (configs[i]['sentence_encoder']['transformer']['ffn_modifications']
-        ['kernel_constraint']) = tf.keras.constraints.UnitNorm(axis=0)
-    configs[i]['classifier_network']['kernel_constraint'] = \
-        tf.keras.constraints.UnitNorm(axis=0)
-    configs[i]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
-        'MhaPoolVnLin_MaxPool_4096d_kConstUnit_Snli_'+str(i)
-# ------------------------------- Config 32-35 --------------------------------
-for i in range(32, 36):
+for i in range(28, 30):
+    configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'mha'
+    configs[i]['sentence_encoder']['transformer']['gate_type'] = \
+        'Ffn(x,y)*y + x'
+    configs[i]['name'] = 'bL16_4xTr_MhaFfn_Ffn(x,y)*y+x_' + \
+        'MhaPoolVmha_MaxPool_4096d_Snli_'+str(i)
+# -----------------------------------------------------------------------------
+for i in range(31, 100):
     configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
     configs[i]['sentence_encoder']['transformer']['gate_type'] = \
         'Ffn(x,y)*y + x'
-    configs[i]['sentence_encoder']['transformer']['kernel_constraint'] = \
-        tf.keras.constraints.UnitNorm(axis=0)
-    (configs[i]['sentence_encoder']['transformer']['mha_modifications']
-        ['kernel_constraint']) = tf.keras.constraints.UnitNorm(axis=0)
-    (configs[i]['sentence_encoder']['transformer']['ffn_modifications']
-        ['kernel_constraint']) = tf.keras.constraints.UnitNorm(axis=0)
-    configs[i]['classifier_network']['kernel_constraint'] = \
-        tf.keras.constraints.UnitNorm(axis=0)
     configs[i]['name'] = 'bL16_4xTr_MhaFfn_Ffn(x,y)*y+x_' + \
-        'MhaPoolVnLin_MaxPool_4096d_kConstUnit_Snli_'+str(i)
-# ------------------------------- Config 36-39 --------------------------------
-for i in range(36, 40):
+        'MhaPoolVnLin_MaxPool_4096d_Snli_valsnli_'+str(i)
+# -----------------------------------------------------------------------------
+for i in range(40, 41):
+    configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
+    configs[i]['sentence_encoder']['pooling']['mha']['inner_dim'] = 3072
+    configs[i]['sentence_encoder']['pooling']['mha']['num_heads'] = 24
+    configs[i]['sentence_encoder']['pooling']['mha']['output_dim'] = 3072
+    configs[i]['sentence_encoder']['pooling']['mha']['input_ffn_dim'] = 3072
+    configs[i]['sentence_encoder']['pooling']['mha']['use_dense_connection'] = True
+    configs[i]['sentence_encoder']['transformer']['gate_type'] = \
+        'Ffn(x,y)*y + x'
+    configs[i]['name'] = 'bL16_4xTr_MhaFfn_Ffn(x,y)*y+x_' + \
+        'MhaPoolVnLin_MhaDenseOut_MaxPool_4096d_Snli_'+str(i)
+# -----------------------------------------------------------------------------
+for i in range(42, 43):
+    configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'NACv'
+    configs[i]['sentence_encoder']['transformer']['gate_type'] = \
+        'Ffn(x,y)*y + x'
+    configs[i]['name'] = 'bL16_4xTr_MhaFfn_Ffn(x,y)*y+x_' + \
+        'MhaPoolVnLinNAC_MaxPool_4096d_Snli_'+str(i)
+# -----------------------------------------------------------------------------
+for i in range(43, 44):
     configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
     configs[i]['sentence_encoder']['transformer']['gate_type'] = \
-        'STE(x,y)*y + x'
-    configs[i]['sentence_encoder']['transformer']['kernel_constraint'] = \
-        tf.keras.constraints.UnitNorm(axis=0)
-    (configs[i]['sentence_encoder']['transformer']['mha_modifications']
-        ['kernel_constraint']) = tf.keras.constraints.UnitNorm(axis=0)
+        'Ffn(x,y)*y + x'
     (configs[i]['sentence_encoder']['transformer']['ffn_modifications']
-        ['kernel_constraint']) = tf.keras.constraints.UnitNorm(axis=0)
-    configs[i]['classifier_network']['kernel_constraint'] = \
-        tf.keras.constraints.UnitNorm(axis=0)
-    configs[i]['name'] = 'bL16_4xTr_MhaFfn_STE(x,y)*y+x_' + \
-        'MhaPoolVnLin_MaxPool_4096d_kConstUnit_Snli_'+str(i)
+                ['nac']) = True
+    configs[i]['name'] = 'bL16_4xTr_MhaFfn_FfnNac_Ffn(x,y)*y+x_' + \
+        'MhaPoolVnLin_MaxPool_4096d_Snli_'+str(i)
+# -----------------------------------------------------------------------------
+for i in range(44, 45):
+    configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
+    configs[i]['sentence_encoder']['transformer']['gate_type'] = \
+        'FfnNac(x,y)*y + x'
+    configs[i]['name'] = 'bL16_4xTr_MhaFfn_FfnNac(x,y)*y+x_' + \
+        'MhaPoolVnLin_MaxPool_4096d_Snli_'+str(i)
+# -----------------------------------------------------------------------------
+for i in range(45, 50):
+    configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
+    configs[i]['sentence_encoder']['transformer']['gate_type'] = \
+        'Ffn(x,y)*y + x'
+    configs[i]['classifier_network']['hidden_nac'] = True
+    configs[i]['name'] = 'bL16_4xTr_MhaFfn_Ffn(x,y)*y+x_' + \
+        'MhaPoolVnLin_MaxPool_4096d_ClassNac_Snli_'+str(i)
 
 task = 'Snli'
-if task != 'Snli':
+if (task != 'Snli') and (task != 'Mnli') and (task != 'Anli'):
     for config in configs:
         config['name'] = config['name'].replace('Snli', task)
         config['classifier_network']['num_classes'] = 2  # PAWS & QNLI == 2
@@ -210,5 +237,9 @@ if task != 'Snli':
             config['training']['lr'] = ([4e-5]*5 + [2e-5]*6 + [1e-5]*5 +
                                         [5e-6]*6 + [2e-6]*5 + [1e-6]*6 +
                                         [5e-7]*6 + [2e-7]*6 + [1e-7]*6)
+        config['training']['task'] = task.lower()
 
+if (task == 'Mnli') or (task == 'Anli'):
+    for config in configs:
+        config['name'] = config['name'].replace('Snli', task)
         config['training']['task'] = task.lower()

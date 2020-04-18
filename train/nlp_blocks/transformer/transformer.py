@@ -14,6 +14,7 @@ from nlp_blocks.transformer.layers import (MultiHeadAttention, Gelu,
 # from nlp_blocks.transformer.position import AddPositionalEncoding
 # from nlp_blocks.wrappers.weight_normalization import WeightNormalization
 from nlp_blocks.transformer.funcs import gelu
+from nlp_blocks.nac import NAC
 
 
 class MultiHeadSelfAttention:
@@ -136,28 +137,49 @@ class PositionWiseFF:
         self.use_bias = False
         self.kernel_initializer = 'glorot_uniform'
         self.kernel_initializer = None
+        self.kernel_constraint = None
+        self.gated = False
+        self.nac = False
         if ('use_bias' in modifications) and (modifications['use_bias']):
             self.use_bias = True
         if 'kernel_initializer' in modifications:
             self.kernel_initializer = modifications['kernel_initializer']
         if 'kernel_constraint' in modifications:
             self.kernel_constraint = modifications['kernel_constraint']
+        if ('gated' in modifications) and (modifications['gated']):
+            self.gated = True
+        if ('nac' in modifications) and (modifications['nac']):
+            self.nac = True
 
-        self.c_fc = Dense(d_hid, use_bias=self.use_bias,
-                          kernel_initializer=self.kernel_initializer,
-                          kernel_constraint=self.kernel_constraint,
-                          name='layer_{}/c_fc'.format(layer_id))
+        if not self.nac:
+            self.c_fc = Dense(d_hid, use_bias=self.use_bias,
+                              kernel_initializer=self.kernel_initializer,
+                              kernel_constraint=self.kernel_constraint,
+                              name='layer_{}/c_fc'.format(layer_id))
+        else:
+            self.c_fc = NAC(d_hid)
+
         self.activation = Gelu(accurate=accurate_gelu,
                                name='layer_{}/gelu'.format(layer_id))
+
         self.c_ffn_proj = Dense(n_state, use_bias=self.use_bias,
-                                kernel_initializer=self.kernel_initializer,
-                                kernel_constraint=self.kernel_constraint,
-                                name='layer_{}/c_ffn_proj'.format(layer_id))
+                                    kernel_initializer=self.kernel_initializer,
+                                    kernel_constraint=self.kernel_constraint,
+                                    name='layer_{}/c_ffn_proj'.format(layer_id))
+        if self.gated:
+            self.sigmoid_act = tf.keras.activations.sigmoid
+            self.g_fc = Dense(n_state, use_bias=self.use_bias,
+                              kernel_initializer=self.kernel_initializer,
+                              kernel_constraint=self.kernel_constraint,
+                              name='layer_{}/g_fc'.format(layer_id))
+
 
     def __call__(self, x):
         output = self.c_fc(x)
         output = self.activation(output)
         output = self.c_ffn_proj(output)
+        if self.gated:
+            output = self.sigmoid_act(output)*self.g_fc(x)
         return output
 
 
@@ -175,6 +197,7 @@ class GatedEncoderLayer:
         self.kernel_initializer = kernel_initializer
         self.kernel_constraint = kernel_constraint
         self.normalization_position = normalization_position
+        self.small_ffn = ffn_modifications['small_ffn']
 
         self.attention = MultiHeadSelfAttention(n_state, n_head,
                                                 attention_dropout,
@@ -184,6 +207,7 @@ class GatedEncoderLayer:
                              name='layer_{}/ln_1_drop'.format(layer_id))
         self.ln1 = LayerNormalization(ln_epsilon,
                                       name='layer_{}/ln_1'.format(layer_id))
+
         if self.ffn_layer:
             self.ffn = PositionWiseFF(n_state, d_hid, layer_id, accurate_gelu,
                                       ffn_modifications)
@@ -192,6 +216,14 @@ class GatedEncoderLayer:
             self.ln2 = LayerNormalization(ln_epsilon,
                                           name='layer_{}/ln_2'
                                                .format(layer_id))
+        if self.small_ffn:
+            self.sffn = PositionWiseFF(n_state, n_state/2, layer_id+100, accurate_gelu,
+                                       ffn_modifications)
+            self.drop3 = Dropout(residual_dropout,
+                                 name='layer_{}/ln_3_drop'.format(layer_id))
+            self.ln3 = LayerNormalization(ln_epsilon,
+                                          name='layer_{}/ln_3'.format(layer_id))
+
 
         if self.gate_type != 'None':
             self.gate1_dense = Dense(n_state, use_bias=True,
@@ -205,6 +237,13 @@ class GatedEncoderLayer:
                                          kernel_constraint=self.kernel_constraint,
                                          activation=tf.keras.backend.sigmoid,
                                          name='layer_{}/gate2'
+                                              .format(layer_id))
+            if self.small_ffn:
+                self.gate3_dense = Dense(n_state, use_bias=True,
+                                         kernel_initializer=self.kernel_initializer,
+                                         kernel_constraint=self.kernel_constraint,
+                                         activation=tf.keras.backend.sigmoid,
+                                         name='layer_{}/gate3'
                                               .format(layer_id))
             if self.gate_type == 'Wg(y)*tanh(Ug(y)) + x':
                 self.gate1_Ug = Dense(n_state, use_bias=False,
@@ -233,6 +272,39 @@ class GatedEncoderLayer:
                                               activation=gelu,
                                               name='layer_{}/gate2h'
                                                    .format(layer_id))
+                if self.small_ffn:
+                    self.gate3h_dense = Dense(n_state/2, use_bias=True,
+                                              kernel_initializer=self.kernel_initializer,
+                                              kernel_constraint=self.kernel_constraint,
+                                              activation=gelu,
+                                              name='layer_{}/gate3h'
+                                                   .format(layer_id))
+            if self.gate_type == 'FfnNac(x,y)*y + x':
+                self.gate1h_dense = NAC(n_state*2)
+                if self.ffn_layer:
+                    self.gate2h_dense = NAC(n_state*2)
+                if self.small_ffn:
+                    self.gate3h_dense = NAC(n_state/2)
+            if self.gate_type == 'Mha(x,y)*y + x':
+                self.gate_attn1 = Dense(3 * n_state, use_bias=False,
+                                    kernel_initializer=self.kernel_initializer,
+                                    kernel_constraint=self.kernel_constraint,
+                                    name='layer_{}/c_attn_gate1'.format(layer_id))
+
+                self.gate_mha1 = MultiHeadAttention(n_head, n_state, attention_dropout,
+                                               use_attn_mask, neg_inf,
+                                               name='layer_{}/self_attention_gate1'
+                                                    .format(layer_id))
+                if self.ffn_layer:
+                    self.gate_attn2 = Dense(3 * n_state, use_bias=False,
+                                        kernel_initializer=self.kernel_initializer,
+                                        kernel_constraint=self.kernel_constraint,
+                                        name='layer_{}/c_attn_gate2'.format(layer_id))
+
+                    self.gate_mha2 = MultiHeadAttention(n_head, n_state, attention_dropout,
+                                                   use_attn_mask, neg_inf,
+                                                   name='layer_{}/self_attention_gate2'
+                                                        .format(layer_id))
             if self.gate_type == 'STE(x,y)*y + x':
                 self.gate1_ste1_dense = Dense(n_state, use_bias=True,
                                          kernel_initializer=self.kernel_initializer,
@@ -249,6 +321,14 @@ class GatedEncoderLayer:
                                          kernel_constraint=self.kernel_constraint,
                                          activation=tf.keras.backend.sigmoid,
                                          name='layer_{}/gate1_ste3'.format(layer_id))
+                self.drop1_ste0 = Dropout(0.1,
+                                     name='layer_{}/ln_1_drop_ste0'.format(layer_id))
+                self.drop1_ste1 = Dropout(0.1,
+                                     name='layer_{}/ln_1_drop_ste1'.format(layer_id))
+                self.drop1_ste2 = Dropout(0.1,
+                                     name='layer_{}/ln_1_drop_ste2'.format(layer_id))
+                self.drop1_ste3 = Dropout(0.1,
+                                     name='layer_{}/ln_1_drop_ste3'.format(layer_id))
                 if self.ffn_layer:
                     self.gate2_ste1_dense = Dense(n_state, use_bias=True,
                                              kernel_initializer=self.kernel_initializer,
@@ -268,6 +348,14 @@ class GatedEncoderLayer:
                                              activation=tf.keras.backend.sigmoid,
                                              name='layer_{}/gate2_ste3'
                                                   .format(layer_id))
+                    self.drop2_ste0 = Dropout(0.1,
+                                         name='layer_{}/ln_2_drop_ste0'.format(layer_id))
+                    self.drop2_ste1 = Dropout(0.1,
+                                         name='layer_{}/ln_2_drop_ste1'.format(layer_id))
+                    self.drop2_ste2 = Dropout(0.1,
+                                         name='layer_{}/ln_2_drop_ste2'.format(layer_id))
+                    self.drop2_ste3 = Dropout(0.1,
+                                         name='layer_{}/ln_2_drop_ste3'.format(layer_id))
 
     def gate_output(self, x, y, g_dense, drop):
         if self.gate_type == 'Wg(x)*y + x':
@@ -281,6 +369,10 @@ class GatedEncoderLayer:
     def gate_output_ffn(self, x, y, g_dense, g_dense_hid, drop):
         g_var = tf.keras.backend.concatenate([x, y], axis=2)
         return drop(g_dense(g_dense_hid(g_var)) * y) + x
+
+    def gate_output_mha(self, x, y, g_dense, g_mha_att, g_mha, mask, drop):
+        g_var = tf.keras.backend.concatenate([x, y], axis=2)
+        return drop(g_dense(g_mha([g_mha_att(g_var), mask])) * y) + x
 
     def gate_output_ste(self, x, y, g_dense1, g_dense2, g_dense3, g_dense4,
                         drop, ste_drop1, ste_drop2, ste_drop3, ste_drop4):
@@ -308,6 +400,21 @@ class GatedEncoderLayer:
         return gate*x + drop((1-gate)*y)
 
     def __call__(self, x, mask):
+        if self.small_ffn:
+            xSubLayer = x
+            if (self.normalization_position == 'pre') or \
+               (self.normalization_position == 'preMod'):
+                xSubLayer = self.ln3(x)
+            y = self.sffn(xSubLayer)
+
+            if (self.gate_type == 'Ffn(x,y)*y + x') or \
+               (self.gate_type == 'FfnNac(x,y)*y + x'):
+                x = self.gate_output_ffn(x, y, self.gate3_dense, self.gate3h_dense,
+                                         self.drop3)
+
+            if self.normalization_position == 'post':
+                x = self.ln3(x)
+
         if self.normalization_position == 'preMod':
             x = self.ln1(x)
         xSubLayer = x
@@ -317,9 +424,13 @@ class GatedEncoderLayer:
 
         if self.gate_type in ['Wg(x)*y + x', 'Wg(x,y)*y + x']:
             x = self.gate_output(x, y, self.gate1_dense, self.drop1)
-        elif self.gate_type == 'Ffn(x,y)*y + x':
+        elif (self.gate_type == 'Ffn(x,y)*y + x') or \
+             (self.gate_type == 'FfnNac(x,y)*y + x'):
             x = self.gate_output_ffn(x, y, self.gate1_dense, self.gate1h_dense,
                                      self.drop1)
+        elif self.gate_type == 'Mha(x,y)*y + x':
+            x = self.gate_output_mha(x, y, self.gate1_dense, self.gate_attn1,
+                                     self.gate_mha1, mask, self.drop1)
         elif self.gate_type == 'STE(x,y)*y + x':
             x = self.gate_output_ste(x, y, self.gate1_dense,
                                      self.gate1_ste1_dense,
@@ -350,9 +461,13 @@ class GatedEncoderLayer:
 
             if self.gate_type in ['Wg(x)*y + x', 'Wg(x,y)*y + x']:
                 x = self.gate_output(x, y, self.gate2_dense, self.drop2)
-            elif self.gate_type == 'Ffn(x,y)*y + x':
+            elif (self.gate_type == 'Ffn(x,y)*y + x') or \
+                 (self.gate_type == 'FfnNac(x,y)*y + x'):
                 x = self.gate_output_ffn(x, y, self.gate2_dense, self.gate2h_dense,
                                          self.drop2)
+            elif self.gate_type == 'Mha(x,y)*y + x':
+                x = self.gate_output_mha(x, y, self.gate2_dense, self.gate_attn2,
+                                         self.gate_mha2, mask, self.drop2)
             elif self.gate_type == 'STE(x,y)*y + x':
                 x = self.gate_output_ste(x, y, self.gate2_dense,
                                          self.gate2_ste1_dense,
@@ -395,7 +510,8 @@ def create_gated_transformer(embedding_dim: int = 768, max_len: int = 512,
     if gate_type not in ['None', 'Wg(x)*y + x', 'Wg(x,y)*y + x',
                          'Wg(y)*tanh(Ug(y)) + x', 'Wg(x)*x + y',
                          'Wg(x)*x + (1-Wg(x))*y', 'Ffn(x,y)*y + x',
-                         'STE(x,y)*y + x']:
+                         'FfnNac(x,y)*y + x', 'STE(x,y)*y + x',
+                         'Mha(x,y)*y + x']:
         raise ValueError('Unknown config.sentence_encoder.transformer.'
                          + 'gate_type.')
 
@@ -439,19 +555,24 @@ class MultiHeadSelfAttentionPool:
         self.kernel_initializer = kernel_initializer
         self.kernel_constraint = kernel_constraint
 
-        self.c_att_q = Dense(n_state, use_bias=False, activation=None,
-                             kernel_initializer=self.kernel_initializer,
-                             kernel_constraint=self.kernel_constraint,
-                             name='layer_{}/c_att_q'.format(layer_id))
-        self.c_att_k = Dense(n_state, use_bias=False, activation=None,
-                             kernel_initializer=self.kernel_initializer,
-                             kernel_constraint=self.kernel_constraint,
-                             name='layer_{}/c_att_k'.format(layer_id))
-        self.c_att_v = Dense(n_state if 'mha' not in self.input_ffn
-                             else 3*n_state, use_bias=False, activation=None,
-                             kernel_initializer=self.kernel_initializer,
-                             kernel_constraint=self.kernel_constraint,
-                             name='layer_{}/c_att_v'.format(layer_id))
+        if 'NAC' not in input_ffn:
+            self.c_att_q = Dense(n_state, use_bias=False, activation=None,
+                                 kernel_initializer=self.kernel_initializer,
+                                 kernel_constraint=self.kernel_constraint,
+                                 name='layer_{}/c_att_q'.format(layer_id))
+            self.c_att_k = Dense(n_state, use_bias=False, activation=None,
+                                 kernel_initializer=self.kernel_initializer,
+                                 kernel_constraint=self.kernel_constraint,
+                                 name='layer_{}/c_att_k'.format(layer_id))
+            self.c_att_v = Dense(n_state if 'mha' not in self.input_ffn
+                                 else 3*n_state, use_bias=False, activation=None,
+                                 kernel_initializer=self.kernel_initializer,
+                                 kernel_constraint=self.kernel_constraint,
+                                 name='layer_{}/c_att_v'.format(layer_id))
+        else:
+            self.c_att_q = NAC(n_state)
+            self.c_att_k = NAC(n_state)
+            self.c_att_v = NAC(n_state if 'mha' not in self.input_ffn else 3*n_state)
 
         if 'q' in input_ffn:
             self.c_att_q2 = Dense(input_ffn_dim, use_bias=False,
@@ -477,6 +598,67 @@ class MultiHeadSelfAttentionPool:
                                               use_attn_mask, neg_inf,
                                               name='layer_{}/v_self_attention'
                                                    .format(layer_id))
+        if 'STE' in input_ffn:
+            if 'Q' in input_ffn:
+                self.ste_drop_q1 = Dropout(0.1)
+                self.ste_drop_q2 = Dropout(0.1)
+                self.ste_drop_q3 = Dropout(0.1)
+                self.ste_drop_q4 = Dropout(0.1)
+                self.c_att_q2 = Dense(n_state, use_bias=False,
+                                      activation=None,
+                                      kernel_initializer=self.kernel_initializer,
+                                      kernel_constraint=self.kernel_constraint,
+                                      name='layer_{}/c_att_q2'.format(layer_id))
+                self.c_att_q3 = Dense(n_state, use_bias=False,
+                                      activation=None,
+                                      kernel_initializer=self.kernel_initializer,
+                                      kernel_constraint=self.kernel_constraint,
+                                      name='layer_{}/c_att_q3'.format(layer_id))
+                self.c_att_q4 = Dense(n_state, use_bias=False,
+                                      activation=None,
+                                      kernel_initializer=self.kernel_initializer,
+                                      kernel_constraint=self.kernel_constraint,
+                                      name='layer_{}/c_att_q4'.format(layer_id))
+            if 'K' in input_ffn:
+                self.ste_drop_k1 = Dropout(0.1)
+                self.ste_drop_k2 = Dropout(0.1)
+                self.ste_drop_k3 = Dropout(0.1)
+                self.ste_drop_k4 = Dropout(0.1)
+                self.c_att_k2 = Dense(n_state, use_bias=False,
+                                      activation=None,
+                                      kernel_initializer=self.kernel_initializer,
+                                      kernel_constraint=self.kernel_constraint,
+                                      name='layer_{}/c_att_k2'.format(layer_id))
+                self.c_att_k3 = Dense(n_state, use_bias=False,
+                                      activation=None,
+                                      kernel_initializer=self.kernel_initializer,
+                                      kernel_constraint=self.kernel_constraint,
+                                      name='layer_{}/c_att_k3'.format(layer_id))
+                self.c_att_k4 = Dense(n_state, use_bias=False,
+                                      activation=None,
+                                      kernel_initializer=self.kernel_initializer,
+                                      kernel_constraint=self.kernel_constraint,
+                                      name='layer_{}/c_att_k4'.format(layer_id))
+            if 'V' in input_ffn:
+                self.ste_drop_v1 = Dropout(0.1)
+                self.ste_drop_v2 = Dropout(0.1)
+                self.ste_drop_v3 = Dropout(0.1)
+                self.ste_drop_v4 = Dropout(0.1)
+                self.c_att_v2 = Dense(n_state, use_bias=False,
+                                      activation=None,
+                                      kernel_initializer=self.kernel_initializer,
+                                      kernel_constraint=self.kernel_constraint,
+                                      name='layer_{}/c_att_v2'.format(layer_id))
+                self.c_att_v3 = Dense(n_state, use_bias=False,
+                                      activation=None,
+                                      kernel_initializer=self.kernel_initializer,
+                                      kernel_constraint=self.kernel_constraint,
+                                      name='layer_{}/c_att_v3'.format(layer_id))
+                self.c_att_v4 = Dense(n_state, use_bias=False,
+                                      activation=None,
+                                      kernel_initializer=self.kernel_initializer,
+                                      kernel_constraint=self.kernel_constraint,
+                                      name='layer_{}/c_att_v4'.format(layer_id))
 
         self.attn = MultiHeadAttention(n_head, n_state, attention_dropout,
                                        use_attn_mask, neg_inf,
@@ -490,16 +672,40 @@ class MultiHeadSelfAttentionPool:
                                           .format(layer_id))
 
     def __call__(self, x, mask):
-        q = self.c_att_q2(x) if 'q' in self.input_ffn else x
-        k = self.c_att_k2(x) if 'k' in self.input_ffn else x
-        v = self.c_att_v2(x) if 'v' in self.input_ffn else x
-        v = self.attn_v2([self.c_att_v(v), mask]) if 'mha' in \
-            self.input_ffn else v
-        output = tf.keras.backend.concatenate([self.c_att_q(q),
-                                               self.c_att_k(k),
-                                               self.c_att_v(v) if 'mha' not in
-                                               self.input_ffn else v],
-                                              axis=2)
+        if 'STE' not in self.input_ffn:
+            q = self.c_att_q2(x) if 'q' in self.input_ffn else x
+            k = self.c_att_k2(x) if 'k' in self.input_ffn else x
+            v = self.c_att_v2(x) if 'v' in self.input_ffn else x
+            v = self.attn_v2([self.c_att_v(v), mask]) if 'mha' in \
+                self.input_ffn else v
+            output = tf.keras.backend.concatenate([self.c_att_q(q),
+                                                   self.c_att_k(k),
+                                                   self.c_att_v(v) if 'mha' not in
+                                                   self.input_ffn else v],
+                                                  axis=2)
+        if 'STE' in self.input_ffn:
+            if 'Q' in self.input_ffn:
+                q = (self.ste_drop_q1(self.c_att_q(x)) +
+                     self.ste_drop_q2(self.c_att_q2(x)) +
+                     self.ste_drop_q3(self.c_att_q3(x)) +
+                     self.ste_drop_q4(self.c_att_q4(x))) / 4
+            else:
+                q = self.c_att_q(x)
+            if 'K' in self.input_ffn:
+                k = (self.ste_drop_k1(self.c_att_k(x)) +
+                     self.ste_drop_k2(self.c_att_k2(x)) +
+                     self.ste_drop_k3(self.c_att_k3(x)) +
+                     self.ste_drop_k4(self.c_att_k4(x))) / 4
+            else:
+                k = self.c_att_k(x)
+            if 'V' in self.input_ffn:
+                v = (self.ste_drop_v1(self.c_att_v(x)) +
+                     self.ste_drop_v2(self.c_att_v2(x)) +
+                     self.ste_drop_v3(self.c_att_v3(x)) +
+                     self.ste_drop_v4(self.c_att_v4(x))) / 4
+            else:
+                v = self.c_att_v(x)
+            output = tf.keras.backend.concatenate([q, k, v], axis=2)
 
         output = self.attn(output) if mask is None else \
             self.attn([output, mask])
@@ -572,7 +778,6 @@ def create_mha_pool(embedding_dim: int = 768, max_len: int = 512,
             x = tf.keras.backend.concatenate([x, out], axis=2)
         else:
             x = out
-    x = out
     if use_attn_mask:
         inputs.append(attn_mask)
     return tensorflow.keras.Model(inputs=inputs, outputs=[x], name='MhaPool')

@@ -7,9 +7,11 @@ default_config = {
     'word_edim': 1024,
     's2v_dim': 4096,
     'name': '',
+    'restore_name': '',
 
     'sentence_encoder': {
         'input_drop': 0.0,
+        'input_gaussian_noise': 0.0,
         'transformer': {
             'word_dim': 1024,
             'num_layers': 4,
@@ -90,10 +92,12 @@ default_config = {
     'classifier_network': {
         'hidden_dim': 512,
         'hidden_layer_cnt': 1,
-        'dropout': 0.0,
-        'hidden_nac': False,
+        'in_dropout': 0.0,  # input dropout
+        'dropout': 0.0,  # hidden dropout
+        'hidden_layer_type': 'dense',  # dense, nac, nalu
         'hidden_layer_norm': False,
         'hidden_activation': 'gelu',
+        'prediction_layer_type': 'dense',  # dense, nac, nalu
         'prediction_activation': tf.keras.activations.softmax,
         'kernel_initializer': tf.keras.initializers.glorot_uniform,
         'kernel_constraint': None,
@@ -180,50 +184,77 @@ for i in range(31, 100):
     configs[i]['name'] = 'bL16_4xTr_MhaFfn_Ffn(x,y)*y+x_' + \
         'MhaPoolVnLin_MaxPool_4096d_Snli_valsnli_'+str(i)
 # -----------------------------------------------------------------------------
-for i in range(40, 41):
-    configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
-    configs[i]['sentence_encoder']['pooling']['mha']['inner_dim'] = 3072
-    configs[i]['sentence_encoder']['pooling']['mha']['num_heads'] = 24
-    configs[i]['sentence_encoder']['pooling']['mha']['output_dim'] = 3072
-    configs[i]['sentence_encoder']['pooling']['mha']['input_ffn_dim'] = 3072
-    configs[i]['sentence_encoder']['pooling']['mha']['use_dense_connection'] = True
+for i in range(44, 50):
+    (configs[i]['sentence_encoder']['transformer']['mha_modifications']
+               ['output_mha']) = True
+    (configs[i]['sentence_encoder']['transformer']['mha_modifications']
+               ['output_mha_num_heads']) = 16
+    configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'mha'
     configs[i]['sentence_encoder']['transformer']['gate_type'] = \
         'Ffn(x,y)*y + x'
-    configs[i]['name'] = 'bL16_4xTr_MhaFfn_Ffn(x,y)*y+x_' + \
-        'MhaPoolVnLin_MhaDenseOut_MaxPool_4096d_Snli_'+str(i)
+    configs[i]['classifier_network']['hidden_layer_type'] = 'nac'
+    configs[i]['classifier_network']['prediction_layer_type'] = 'nac'
+    configs[i]['training']['loss_mean0_s2v'] = True
+    # configs[i]['name'] = 'bL16_4xTr_MhaFfn_Ffn(x,y)*y+x_' + \
+    # configs[i]['training']['lr'] = ([1e-6]*5)
+    configs[i]['name'] = 'bL16_4xTr_MhaMha16hFfn_Ffn(x,y)*y+x_' + \
+        'MhaPoolVmha_MaxPool_4096d_Snli_ClassNac_s2vLoss_valanliloss_'+str(i)
 # -----------------------------------------------------------------------------
-for i in range(42, 43):
-    configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'NACv'
+for i in range(50, 51):
+    (configs[i]['sentence_encoder']['transformer']['mha_modifications']
+               ['output_mha']) = True
+    (configs[i]['sentence_encoder']['transformer']['mha_modifications']
+               ['output_mha_num_heads']) = 16
+    configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'mha'
     configs[i]['sentence_encoder']['transformer']['gate_type'] = \
         'Ffn(x,y)*y + x'
-    configs[i]['name'] = 'bL16_4xTr_MhaFfn_Ffn(x,y)*y+x_' + \
-        'MhaPoolVnLinNAC_MaxPool_4096d_Snli_'+str(i)
-# -----------------------------------------------------------------------------
-for i in range(43, 44):
-    configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
-    configs[i]['sentence_encoder']['transformer']['gate_type'] = \
-        'Ffn(x,y)*y + x'
-    (configs[i]['sentence_encoder']['transformer']['ffn_modifications']
-                ['nac']) = True
-    configs[i]['name'] = 'bL16_4xTr_MhaFfn_FfnNac_Ffn(x,y)*y+x_' + \
-        'MhaPoolVnLin_MaxPool_4096d_Snli_'+str(i)
-# -----------------------------------------------------------------------------
-for i in range(44, 45):
-    configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
-    configs[i]['sentence_encoder']['transformer']['gate_type'] = \
-        'FfnNac(x,y)*y + x'
-    configs[i]['name'] = 'bL16_4xTr_MhaFfn_FfnNac(x,y)*y+x_' + \
-        'MhaPoolVnLin_MaxPool_4096d_Snli_'+str(i)
-# -----------------------------------------------------------------------------
-for i in range(45, 50):
-    configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
-    configs[i]['sentence_encoder']['transformer']['gate_type'] = \
-        'Ffn(x,y)*y + x'
-    configs[i]['classifier_network']['hidden_nac'] = True
-    configs[i]['name'] = 'bL16_4xTr_MhaFfn_Ffn(x,y)*y+x_' + \
-        'MhaPoolVnLin_MaxPool_4096d_ClassNac_Snli_'+str(i)
+    configs[i]['sentence_encoder']['pooling']['pooling_activation'] = tf.keras.activations.tanh
+    configs[i]['classifier_network']['hidden_layer_type'] = 'nac'
+    configs[i]['classifier_network']['in_dropout'] = 0.1
+    configs[i]['classifier_network']['dropout'] = 0.1
+    configs[i]['classifier_network']['prediction_layer_type'] = 'nac'
+    configs[i]['training']['loss_mean0_s2v'] = True
+    configs[i]['restore_name'] = 'bL16_4xTr_MhaMha16hFfn_Ffn(x,y)*y+x_MhaPoolVmha_MaxPool_4096d_Anli_ClassNac_s2vLoss_valanliloss_45'
+    configs[i]['training']['lr'] = ([1e-7]*100)
+    configs[i]['name'] = 'bL16_4xTr_MhaMha16hFfn_Ffn(x,y)*y+x_' + \
+        'MhaPoolVmha_TanhActMaxPool_4096d_Snli_ClassNacInHidDrop.1_s2vLoss_valanliloss_lr1e-7_SmallParts_restore_'+str(i)
 
-task = 'Snli'
+# -----------------------------------------------------------------------------
+for i in range(51, 52):
+    (configs[i]['sentence_encoder']['transformer']['mha_modifications']
+               ['output_mha']) = True
+    (configs[i]['sentence_encoder']['transformer']['mha_modifications']
+               ['output_mha_num_heads']) = 16
+    (configs[i]['sentence_encoder']['transformer']['mha_modifications']
+               ['hidden_dim']) = 3072
+    configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'mha'
+    configs[i]['sentence_encoder']['transformer']['gate_type'] = \
+        'Ffn(x,y)*y + x'
+    configs[i]['classifier_network']['hidden_layer_type'] = 'nac'
+    configs[i]['classifier_network']['prediction_layer_type'] = 'nac'
+    configs[i]['training']['loss_mean0_s2v'] = True
+    configs[i]['classifier_network']['hidden_layer_type'] = 'nac'
+    configs[i]['name'] = 'bL16_4xTr_MhaMha16hFfn3072h_Ffn(x,y)*y+x_' + \
+        'MhaPoolVmha_MaxPool_4096d_Snli_ClassNac_s2vLoss_valanliloss_'+str(i)
+# -----------------------------------------------------------------------------
+for i in range(52, 55):
+    (configs[i]['sentence_encoder']['transformer']['mha_modifications']
+               ['output_mha']) = True
+    (configs[i]['sentence_encoder']['transformer']['mha_modifications']
+               ['output_mha_num_heads']) = 16
+    configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'mha'
+    configs[i]['sentence_encoder']['transformer']['gate_type'] = \
+        'Ffn(x,y)*y + x'
+    configs[i]['classifier_network']['hidden_layer_type'] = 'nac'
+    configs[i]['classifier_network']['prediction_layer_type'] = 'nac'
+    configs[i]['training']['loss_mean0_s2v'] = True
+    # configs[i]['name'] = 'bL16_4xTr_MhaFfn_Ffn(x,y)*y+x_' + \
+    configs[i]['max_sent_len'] = 256
+    configs[i]['batch_size'] = 4
+    configs[i]['name'] = 'bL4_4xTr_MhaMha16hFfn_Ffn(x,y)*y+x_' + \
+        'MhaPoolVmha_MaxPool_4096d_Snli_ClassNac_s2vLoss_valanliloss_'+str(i)
+
+task = 'Anli'
 if (task != 'Snli') and (task != 'Mnli') and (task != 'Anli'):
     for config in configs:
         config['name'] = config['name'].replace('Snli', task)

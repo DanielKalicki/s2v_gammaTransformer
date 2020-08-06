@@ -1,5 +1,5 @@
 import tensorflow as tf
-from tensorflow.keras.layers import Dropout, Dense
+from tensorflow.keras.layers import Dropout, GaussianNoise, Dense
 from nlp_blocks.transformer.transformer import (create_mha_pool,
                                                 create_gated_transformer)
 from nlp_blocks.transformer.funcs import gelu
@@ -39,6 +39,8 @@ class SentenceEncoderModel(tf.keras.Model):
 
         self.input_drop = Dropout(self.config['sentence_encoder']
                                              ['input_drop'])
+        self.input_noise = GaussianNoise(self.config['sentence_encoder']
+                                             ['input_gaussian_noise'])
         self.pooling_in_drop = Dropout(self.config['sentence_encoder']
                                                   ['pooling']
                                                   ['pooling_in_dropout'])
@@ -165,6 +167,7 @@ class SentenceEncoderModel(tf.keras.Model):
         @return: Sentence vector generated from input.
         """
         sent = self.input_drop(sentence)
+        sent = self.input_noise(sent)
         sent_mask = tf.expand_dims(sentence_mask, axis=-1)
         sent_tr_mask = sentence_transformer_mask
 

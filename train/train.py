@@ -14,6 +14,8 @@ from tensorflow.keras.callbacks import (TensorBoard, LearningRateScheduler,
 from configs import configs
 import sys
 
+# tf.executing_eagerly()
+
 # -----------------------------------------------------------------------------
 # Model configuration
 # -----------------------------------------------------------------------------
@@ -75,6 +77,8 @@ model = tf.keras.models.Model(inputs=[input_sentence1, input_sentence1_mask,
                                       input_sentence2, input_sentence2_mask,
                                       input_sentence2_transformer_mask],
                               outputs=[nli_predictions])
+if config['restore_name'] != '':
+    model.load_weights("./train/save/"+config['restore_name']+"/model")
 
 # -----------------------------------------------------------------------------
 # Optimizer
@@ -85,6 +89,9 @@ if config['training']['optimizer'] == 'Nadam':
                                     clipnorm=config['training']['clipnorm'])
 elif config['training']['optimizer'] == 'Adam':
     opt = tf.keras.optimizers.Adam(lr=config['training']['lr'][0],
+                                   clipnorm=config['training']['clipnorm'])
+elif config['training']['optimizer'] == 'SGD':
+    opt = tf.keras.optimizers.SGD(lr=config['training']['lr'][0],
                                    clipnorm=config['training']['clipnorm'])
 
 # -----------------------------------------------------------------------------
@@ -149,7 +156,7 @@ tensorboard = TensorBoard(log_dir='train/logs/'+config['name'],
                           write_graph=False, update_freq='batch')
 lrate = LearningRateScheduler(step_decay)
 checkpoint = ModelCheckpoint(filepath="train/save/"+config['name']+"/model",
-                             monitor='val_acc', verbose=1, save_best_only=True,
+                             monitor='val_loss', verbose=1, save_best_only=True,
                              save_weights_only=True, mode='auto', period=1)
 
 model.fit_generator(generator=generator_train,

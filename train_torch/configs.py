@@ -114,7 +114,9 @@ default_config = {
         'lr': ([4e-5]*5 + [2e-5]*6 + [1e-5]*5 + [5e-6]*6 + [2e-6]*3 + [1e-6]*3
                + [5e-7]*2 + [2e-7]*2 + [1e-7]*6),
         'label_smoothing': 0.2,
-        'label_noise': 0.0
+        'label_noise': 0.0,
+        'epochs': 300,
+        'log': True
     }
 }
 
@@ -122,69 +124,8 @@ configs = []
 for i in range(100):
     configs.append(copy.deepcopy(default_config))
 
-# ------------------------------- Config 00-03 --------------------------------
-for i in range(0, 4):
-    configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
-    configs[i]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
-        'MhaPoolVnLin_MaxPool_4096d_Snli_'+str(i)
-# ------------------------------- Config 04-07 --------------------------------
-for i in range(4, 8):
-    configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
-    (configs[i]['sentence_encoder']['transformer']['mha_modifications']
-                ['hidden_layer']) = False
-    (configs[i]['sentence_encoder']['transformer']['mha_modifications']
-                ['output_projection']) = True
-    configs[i]['name'] = 'bL16_4xTr_MhaOutProj_g(x,y)*y+x_' + \
-        'MhaPoolVnLin_MaxPool_4096d_Snli_'+str(i)
-# ------------------------------- Config 08-11 --------------------------------
-for i in range(8, 12):
-    configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = ''
-    configs[i]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
-        'MhaPool_MaxPool_4096d_Snli_'+str(i)
-# ------------------------------- Config 12-15 --------------------------------
-for i in range(12, 16):
-    configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = ''
-    (configs[i]['sentence_encoder']['pooling']['mha']
-            ['output_projection']) = True
-    configs[i]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
-        'MhaPoolOutProj_MaxPool_4096d_Snli_'+str(i)
-# ------------------------------- Config 16-19 --------------------------------
-for i in range(16, 20):
-    configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'mha'
-    configs[i]['name'] = 'bL16_4xTr_MhaFfn_g(x,y)*y+x_' + \
-        'MhaPoolVmha_MaxPool_4096d_Snli_'+str(i)
-# ------------------------------- Config 20-23 --------------------------------
-for i in range(20, 24):
-    configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
-    (configs[i]['sentence_encoder']['transformer']['mha_modifications']
-                ['output_mha']) = True
-    (configs[i]['sentence_encoder']['transformer']['mha_modifications']
-                ['output_mha_num_heads']) = 16
-    configs[i]['name'] = 'bL16_4xTr_MhaMha16hFfn_g(x,y)*y+x_' + \
-        'MhaPoolVnLin_MaxPool_4096d_Snli_'+str(i)
-# ------------------------------- Config 24-27 --------------------------------
-for i in range(24, 28):
-    configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
-    configs[i]['sentence_encoder']['transformer']['gate_type'] = \
-        'Ffn(x,y)*y + x'
-    configs[i]['name'] = 'bL16_4xTr_MhaFfn_Ffn(x,y)*y+x_' + \
-        'MhaPoolVnLin_MaxPool_4096d_Snli_'+str(i)
-# ------------------------------- Config 28-31 --------------------------------
-for i in range(28, 30):
-    configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'mha'
-    configs[i]['sentence_encoder']['transformer']['gate_type'] = \
-        'Ffn(x,y)*y + x'
-    configs[i]['name'] = 'bL16_4xTr_MhaFfn_Ffn(x,y)*y+x_' + \
-        'MhaPoolVmha_MaxPool_4096d_Snli_'+str(i)
 # -----------------------------------------------------------------------------
-for i in range(31, 100):
-    configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'v'
-    configs[i]['sentence_encoder']['transformer']['gate_type'] = \
-        'Ffn(x,y)*y + x'
-    configs[i]['name'] = 'bL16_4xTr_MhaFfn_Ffn(x,y)*y+x_' + \
-        'MhaPoolVnLin_MaxPool_4096d_Snli_valsnli_'+str(i)
-# -----------------------------------------------------------------------------
-for i in range(44, 50):
+for i in range(45, 46):
     (configs[i]['sentence_encoder']['transformer']['mha_modifications']
                ['output_mha']) = True
     (configs[i]['sentence_encoder']['transformer']['mha_modifications']
@@ -195,64 +136,214 @@ for i in range(44, 50):
     configs[i]['classifier_network']['hidden_layer_type'] = 'nac'
     configs[i]['classifier_network']['prediction_layer_type'] = 'nac'
     configs[i]['training']['loss_mean0_s2v'] = True
-    # configs[i]['name'] = 'bL16_4xTr_MhaFfn_Ffn(x,y)*y+x_' + \
-    # configs[i]['training']['lr'] = ([1e-6]*5)
-    configs[i]['name'] = 'bL16_4xTr_MhaMha16hFfn_Ffn(x,y)*y+x_' + \
-        'MhaPoolVmha_MaxPool_4096d_Snli_ClassNac_s2vLoss_valanliloss_'+str(i)
-# -----------------------------------------------------------------------------
-for i in range(50, 51):
-    (configs[i]['sentence_encoder']['transformer']['mha_modifications']
-               ['output_mha']) = True
-    (configs[i]['sentence_encoder']['transformer']['mha_modifications']
-               ['output_mha_num_heads']) = 16
-    configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'mha'
-    configs[i]['sentence_encoder']['transformer']['gate_type'] = \
-        'Ffn(x,y)*y + x'
-    configs[i]['sentence_encoder']['pooling']['pooling_activation'] = tf.keras.activations.tanh
-    configs[i]['classifier_network']['hidden_layer_type'] = 'nac'
-    configs[i]['classifier_network']['in_dropout'] = 0.1
-    configs[i]['classifier_network']['dropout'] = 0.1
-    configs[i]['classifier_network']['prediction_layer_type'] = 'nac'
-    configs[i]['training']['loss_mean0_s2v'] = True
-    configs[i]['restore_name'] = 'bL16_4xTr_MhaMha16hFfn_Ffn(x,y)*y+x_MhaPoolVmha_MaxPool_4096d_Anli_ClassNac_s2vLoss_valanliloss_45'
-    configs[i]['training']['lr'] = ([1e-7]*100)
-    configs[i]['name'] = 'bL16_4xTr_MhaMha16hFfn_Ffn(x,y)*y+x_' + \
-        'MhaPoolVmha_TanhActMaxPool_4096d_Snli_ClassNacInHidDrop.1_s2vLoss_valanliloss_lr1e-7_SmallParts_restore_'+str(i)
-
-# -----------------------------------------------------------------------------
-for i in range(51, 52):
-    (configs[i]['sentence_encoder']['transformer']['mha_modifications']
-               ['output_mha']) = True
-    (configs[i]['sentence_encoder']['transformer']['mha_modifications']
-               ['output_mha_num_heads']) = 16
-    (configs[i]['sentence_encoder']['transformer']['mha_modifications']
-               ['hidden_dim']) = 3072
-    configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'mha'
-    configs[i]['sentence_encoder']['transformer']['gate_type'] = \
-        'Ffn(x,y)*y + x'
-    configs[i]['classifier_network']['hidden_layer_type'] = 'nac'
-    configs[i]['classifier_network']['prediction_layer_type'] = 'nac'
-    configs[i]['training']['loss_mean0_s2v'] = True
-    configs[i]['classifier_network']['hidden_layer_type'] = 'nac'
-    configs[i]['name'] = 'bL16_4xTr_MhaMha16hFfn3072h_Ffn(x,y)*y+x_' + \
-        'MhaPoolVmha_MaxPool_4096d_Snli_ClassNac_s2vLoss_valanliloss_'+str(i)
-# -----------------------------------------------------------------------------
-for i in range(52, 55):
-    (configs[i]['sentence_encoder']['transformer']['mha_modifications']
-               ['output_mha']) = True
-    (configs[i]['sentence_encoder']['transformer']['mha_modifications']
-               ['output_mha_num_heads']) = 16
-    configs[i]['sentence_encoder']['pooling']['mha']['input_ffn'] = 'mha'
-    configs[i]['sentence_encoder']['transformer']['gate_type'] = \
-        'Ffn(x,y)*y + x'
-    configs[i]['classifier_network']['hidden_layer_type'] = 'nac'
-    configs[i]['classifier_network']['prediction_layer_type'] = 'nac'
-    configs[i]['training']['loss_mean0_s2v'] = True
-    # configs[i]['name'] = 'bL16_4xTr_MhaFfn_Ffn(x,y)*y+x_' + \
     configs[i]['max_sent_len'] = 256
-    configs[i]['batch_size'] = 4
+    configs[i]['batch_size'] = 64
     configs[i]['name'] = 'bL4_4xTr_MhaMha16hFfn_Ffn(x,y)*y+x_' + \
         'MhaPoolVmha_MaxPool_4096d_Snli_ClassNac_s2vLoss_valanliloss_'+str(i)
+# -----------------------------------------------------------------------------
+for i in range(46, 47):
+    configs[i]['sentence_encoder']['transformer']['gate_type'] = \
+        'Ffn(x,y)*y + x'
+    configs[i]['sentence_encoder']['pooling']['mha']['inner_dim'] = 1024
+    configs[i]['max_sent_len'] = 64
+    configs[i]['batch_size'] = 32+8
+    configs[i]['training']['optimizer'] = 'Adam'
+    configs[i]['training']['label_smoothing'] = 0.0
+    configs[i]['training']['clipnorm'] = -1.0
+    configs[i]['training']['lr'] = 4e-5
+    configs[i]['name'] = 'bL40_sl64_4xTr_Mha16hDense_Ffn(x,y)*y+x_' + \
+        'MhaPool_MaxPool_1024d_Snli_valanliloss_'+str(i)
+# -----------------------------------------------------------------------------
+for i in range(47, 48):
+    configs[i]['sentence_encoder']['transformer']['gate_type'] = \
+        'Ffn(x,y)*y + x'
+    configs[i]['sentence_encoder']['pooling']['mha']['inner_dim'] = 1024
+    configs[i]['max_sent_len'] = 64
+    configs[i]['batch_size'] = 32+8
+    configs[i]['training']['optimizer'] = 'Adam'
+    configs[i]['training']['label_smoothing'] = 0.0
+    configs[i]['training']['clipnorm'] = -1.0
+    configs[i]['training']['lr'] = 8e-5
+    configs[i]['name'] = 'bL40_sl64_4xTr_Mha16hDense_Ffn1xH(x,y)*y+x_' + \
+        'MhaPool_MaxPool_1024d_Snli_Lr8e-5dec0.85_valanliloss_'+str(i)
+# -----------------------------------------------------------------------------
+for i in range(48, 49):
+    configs[i]['sentence_encoder']['transformer']['gate_type'] = \
+        'Ffn(x,y)*y + x'
+    configs[i]['sentence_encoder']['pooling']['mha']['inner_dim'] = 1024
+    configs[i]['max_sent_len'] = 64
+    configs[i]['batch_size'] = 16
+    configs[i]['training']['optimizer'] = 'Adam'
+    configs[i]['training']['label_smoothing'] = 0.0
+    configs[i]['training']['clipnorm'] = -1.0
+    configs[i]['training']['lr'] = 8e-5
+    configs[i]['name'] = 'bL16_sl64_4xTrGelu_Mha16hDense_Ffn1xH(x,y)*y+x_' + \
+        'MaxPool_1024d_Snli_Lr8e-5dec0.85_valanliloss_'+str(i)
+# -----------------------------------------------------------------------------
+for i in range(49, 50):
+    configs[i]['sentence_encoder']['transformer']['gate_type'] = \
+        'Ffn(x,y)*y + x'
+    configs[i]['sentence_encoder']['pooling']['mha']['inner_dim'] = 1024
+    configs[i]['max_sent_len'] = 64
+    configs[i]['batch_size'] = 16
+    configs[i]['training']['optimizer'] = 'Adam'
+    configs[i]['training']['label_smoothing'] = 0.0
+    configs[i]['training']['clipnorm'] = -1.0
+    configs[i]['training']['lr'] = 8e-5
+    configs[i]['name'] = 'bL16_sl64_4xTrNorm_Mha16hDense_Ffn1xH(x,y)*y+x_' + \
+        'MaxPool_1024d_Snli_Lr8e-5dec0.85_valanliloss_'+str(i)
+# -----------------------------------------------------------------------------
+for i in range(50, 51):
+    configs[i]['sentence_encoder']['transformer']['gate_type'] = \
+        'Ffn(x,y)*y + x'
+    configs[i]['sentence_encoder']['pooling']['mha']['inner_dim'] = 1024
+    configs[i]['sentence_encoder']['transformer']['num_layers'] = 6
+    configs[i]['max_sent_len'] = 64
+    configs[i]['batch_size'] = 16
+    configs[i]['training']['optimizer'] = 'Adam'
+    configs[i]['training']['label_smoothing'] = 0.0
+    configs[i]['training']['clipnorm'] = -1.0
+    configs[i]['training']['lr'] = 8e-5
+    configs[i]['name'] = 'bL16_sl64_6xTr_Mha16hDense_Ffn1xH(x,y)*y+x_' + \
+        'MaxPool_1024d_Snli_Lr8e-5dec0.85_valanliloss_'+str(i)
+# -----------------------------------------------------------------------------
+for i in range(51, 52):
+    configs[i]['sentence_encoder']['transformer']['gate_type'] = \
+        'Ffn(x,y)*y + x'
+    configs[i]['sentence_encoder']['pooling']['mha']['inner_dim'] = 1024
+    configs[i]['sentence_encoder']['transformer']['num_layers'] = 4
+    configs[i]['max_sent_len'] = 64
+    configs[i]['batch_size'] = 16
+    configs[i]['training']['optimizer'] = 'Adam'
+    configs[i]['training']['label_smoothing'] = 0.0
+    configs[i]['training']['clipnorm'] = -1.0
+    configs[i]['training']['lr'] = 8e-5
+    configs[i]['name'] = 'bL16_sl64_2x(4xTr)_Mha16hDense_Ffn1xH(x,y)*y+x_' + \
+        'MaxPool_1024d_Snli_Lr8e-5dec0.85_valanliloss_'+str(i)
+# -----------------------------------------------------------------------------
+for i in range(52, 53):
+    configs[i]['sentence_encoder']['transformer']['gate_type'] = \
+        'Ffn(x,y)*y + x'
+    configs[i]['sentence_encoder']['pooling']['mha']['inner_dim'] = 4*1024
+    configs[i]['sentence_encoder']['transformer']['num_layers'] = 4
+    configs[i]['max_sent_len'] = 32
+    configs[i]['batch_size'] = 16
+    configs[i]['training']['optimizer'] = 'Adam'
+    configs[i]['training']['label_smoothing'] = 0.0
+    configs[i]['training']['clipnorm'] = -1.0
+    configs[i]['training']['lr'] = 8e-5
+    configs[i]['name'] = 'bL16_sl32_4xTr_Mha16hDense_Ffn1xH(x,y)*y+x_' + \
+        'Mha4xPool_MaxPool_1024d_Snli_Lr8e-5dec0.96_valanliloss_epoch4xFile.1LenFix2_'+str(i)
+# -----------------------------------------------------------------------------
+for i in range(53, 54):
+    configs[i]['sentence_encoder']['input_drop'] = 0.1
+    configs[i]['sentence_encoder']['transformer']['gate_type'] = \
+        'Ffn(x,y)*y + x'
+    configs[i]['sentence_encoder']['pooling']['mha']['inner_dim'] = 4*1024
+    configs[i]['sentence_encoder']['transformer']['num_layers'] = 4
+    configs[i]['sentence_encoder']['transformer']['residual_dropout'] = 0.1
+    configs[i]['classifier_network']['in_dropout'] = 0.1
+    configs[i]['max_sent_len'] = 32
+    configs[i]['batch_size'] = 16
+    configs[i]['training']['optimizer'] = 'Adam'
+    configs[i]['training']['label_smoothing'] = 0.0
+    configs[i]['training']['clipnorm'] = -1.0
+    configs[i]['training']['lr'] = 8e-5
+    configs[i]['name'] = 'bL16_sl32_InDr.1_4xTrDr.1_Mha16hDense_Ffn1xH(x,y)*y+x_' + \
+        'Mha4xPool_MaxPool_dr.1_1024d_Snli_Lr8e-5dec0.96_valanliloss_epoch4xFile.1LenFix2_'+str(i)
+# -----------------------------------------------------------------------------
+for i in range(54, 55):
+    configs[i]['sentence_encoder']['input_drop'] = 0.0
+    configs[i]['sentence_encoder']['transformer']['gate_type'] = \
+        'Ffn(x,y)*y + x'
+    configs[i]['sentence_encoder']['pooling']['mha']['inner_dim'] = 4*1024
+    configs[i]['sentence_encoder']['transformer']['num_layers'] = 4
+    configs[i]['sentence_encoder']['transformer']['residual_dropout'] = 0.0
+    configs[i]['sentence_encoder']['transformer']['ffn_dim'] = 256
+    configs[i]['classifier_network']['in_dropout'] = 0.0
+    configs[i]['max_sent_len'] = 32
+    configs[i]['batch_size'] = 16
+    configs[i]['training']['optimizer'] = 'Adam'
+    configs[i]['training']['label_smoothing'] = 0.0
+    configs[i]['training']['clipnorm'] = -1.0
+    configs[i]['training']['lr'] = 8e-5
+    configs[i]['name'] = 'bL16_sl32_4xTr_Mha16hDense_Ffnd4_Ffn1xH(x,y)*y+x_' + \
+        'Mha4xPool_MaxPool_1024d_Snli_Lr8e-5dec0.96_valanliloss_epoch4xFile.1LenFix2_'+str(i)
+# -----------------------------------------------------------------------------
+for i in range(55, 56):
+    configs[i]['sentence_encoder']['input_drop'] = 0.0
+    configs[i]['sentence_encoder']['transformer']['gate_type'] = \
+        'Ffn(x,y)*y + x'
+    configs[i]['sentence_encoder']['pooling']['mha']['inner_dim'] = 4*1024
+    configs[i]['sentence_encoder']['transformer']['num_layers'] = 4
+    configs[i]['sentence_encoder']['transformer']['residual_dropout'] = 0.0
+    configs[i]['sentence_encoder']['transformer']['ffn_dim'] = 256
+    configs[i]['classifier_network']['in_dropout'] = 0.0
+    configs[i]['max_sent_len'] = 32
+    configs[i]['batch_size'] = 16
+    configs[i]['training']['optimizer'] = 'Adam'
+    configs[i]['training']['label_smoothing'] = 0.0
+    configs[i]['training']['clipnorm'] = -1.0
+    configs[i]['training']['lr'] = 8e-5
+    configs[i]['name'] = 'bL16_sl32_4xTr_DextraMha16hDense_Ffnd4_Ffn1xH(x,y)*y+x_' + \
+        'Mha4xPool_MaxPool_1024d_Snli_Lr8e-5dec0.96_valanliloss_epoch4xFile.1LenFix2_'+str(i)
+# -----------------------------------------------------------------------------
+for i in range(56, 57):
+    configs[i]['sentence_encoder']['input_drop'] = 0.0
+    configs[i]['sentence_encoder']['transformer']['gate_type'] = \
+        'Ffn(x,y)*y + x'
+    configs[i]['sentence_encoder']['pooling']['mha']['inner_dim'] = 4*1024
+    configs[i]['sentence_encoder']['transformer']['num_layers'] = 6
+    configs[i]['sentence_encoder']['transformer']['residual_dropout'] = 0.0
+    configs[i]['sentence_encoder']['transformer']['ffn_dim'] = 256
+    configs[i]['classifier_network']['in_dropout'] = 0.0
+    configs[i]['max_sent_len'] = 32
+    configs[i]['batch_size'] = 16
+    configs[i]['training']['optimizer'] = 'Adam'
+    configs[i]['training']['label_smoothing'] = 0.0
+    configs[i]['training']['clipnorm'] = -1.0
+    configs[i]['training']['lr'] = 8e-5
+    configs[i]['name'] = 'bL16_sl32_6xTrNorm_SubLay.25_DextraMha16hDense_Ffnd4_Ffn1xH(x,y)*y+x_' + \
+        'Mha4xPool_MaxPool_1024d_Snli_Lr8e-5dec0.96_valanliloss_epoch4xFile.1LenFix2_'+str(i)
+# -----------------------------------------------------------------------------
+for i in range(57, 58):
+    configs[i]['sentence_encoder']['input_drop'] = 0.0
+    configs[i]['sentence_encoder']['transformer']['gate_type'] = \
+        'Ffn(x,y)*y + x'
+    configs[i]['sentence_encoder']['pooling']['mha']['inner_dim'] = 4*1024
+    configs[i]['sentence_encoder']['transformer']['num_layers'] = 8
+    configs[i]['sentence_encoder']['transformer']['residual_dropout'] = 0.0
+    configs[i]['sentence_encoder']['transformer']['ffn_dim'] = 256
+    configs[i]['classifier_network']['in_dropout'] = 0.0
+    configs[i]['max_sent_len'] = 32
+    configs[i]['batch_size'] = 16
+    configs[i]['training']['optimizer'] = 'Adam'
+    configs[i]['training']['label_smoothing'] = 0.0
+    configs[i]['training']['clipnorm'] = -1.0
+    configs[i]['training']['lr'] = 8e-5
+    configs[i]['name'] = 'bL16_sl32_8xTrNorm_SubLay.25_Mha16hDense_Ffnd4_Ffn4dH(x,y)*y+x_' + \
+        'Mha4xPool_MaxPool_1024d_Snli_Lr8e-5dec0.96_valanliloss_epoch4xFile.1LenFix2_'+str(i)
+# -----------------------------------------------------------------------------
+for i in range(58, 59):
+    configs[i]['sentence_encoder']['input_drop'] = 0.0
+    configs[i]['sentence_encoder']['transformer']['gate_type'] = \
+        'Ffn(x,y)*y + x'
+    configs[i]['sentence_encoder']['pooling']['mha']['inner_dim'] = 4*1024
+    configs[i]['sentence_encoder']['transformer']['num_layers'] = 6
+    configs[i]['sentence_encoder']['transformer']['residual_dropout'] = 0.0
+    configs[i]['sentence_encoder']['transformer']['ffn_dim'] = 256
+    configs[i]['classifier_network']['in_dropout'] = 0.0
+    configs[i]['max_sent_len'] = 32
+    configs[i]['batch_size'] = 16
+    configs[i]['training']['optimizer'] = 'Adam'
+    configs[i]['training']['label_smoothing'] = 0.0
+    configs[i]['training']['clipnorm'] = -1.0
+    configs[i]['training']['lr'] = 8e-5
+    configs[i]['name'] = 'bL16_sl32_6xTrNorm_SubLay.5_Mha16hDense_Ffnd4_Ffn1xH(x,y)*y+x_' + \
+        'Mha4xPool_MaxPool_4096d_Snli_Lr8e-5dec0.96_valanliloss_epoch4xFile.1LenFix2_'+str(i)
+
+# drop 0.1 long training
+# ffn hidx2
 
 task = 'Anli'
 if (task != 'Snli') and (task != 'Mnli') and (task != 'Anli'):

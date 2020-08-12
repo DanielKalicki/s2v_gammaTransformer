@@ -339,11 +339,29 @@ for i in range(58, 59):
     configs[i]['training']['label_smoothing'] = 0.0
     configs[i]['training']['clipnorm'] = -1.0
     configs[i]['training']['lr'] = 8e-5
-    configs[i]['name'] = 'bL16_sl32_6xTrNorm_SubLay.5_Mha16hDense_Ffnd4_Ffn1xH(x,y)*y+x_' + \
-        'Mha4xPool_MaxPool_4096d_Snli_Lr8e-5dec0.96_valanliloss_epoch4xFile.1LenFix2_'+str(i)
+    configs[i]['name'] = 'bL16_sl32_6xTrNorm_SubLay.25_Mha16hDense_Ffnd4_Ffn1xH(x,y)*y+x_' + \
+        'Mha4xPool__MaxPoolMaskFix_4096d_Snli_Lr8e-5dec0.96_valanliloss_epoch4xFile.1LenFix2_'+str(i)
+# -----------------------------------------------------------------------------
+for i in range(59, 60):
+    configs[i]['sentence_encoder']['input_drop'] = 0.0
+    configs[i]['sentence_encoder']['transformer']['gate_type'] = \
+        'Ffn(x,y)*y + x'
+    configs[i]['sentence_encoder']['pooling']['mha']['inner_dim'] = 4*1024
+    configs[i]['sentence_encoder']['transformer']['num_layers'] = 6
+    configs[i]['sentence_encoder']['transformer']['residual_dropout'] = 0.0
+    configs[i]['sentence_encoder']['transformer']['ffn_dim'] = 256
+    configs[i]['sentence_encoder']['pooling']['mha']['num_heads'] = 128
+    configs[i]['classifier_network']['in_dropout'] = 0.0
+    configs[i]['max_sent_len'] = 32
+    configs[i]['batch_size'] = 16
+    configs[i]['training']['optimizer'] = 'Adam'
+    configs[i]['training']['label_smoothing'] = 0.0
+    configs[i]['training']['clipnorm'] = -1.0
+    configs[i]['training']['lr'] = 8e-5
+    # configs[i]['name'] = 'bL16_sl32_CeLoss.TestWordsNoise.3_6xTr_SubLay.25_Mha16hDense_Ffnd4_Ffn1xH(x,y)*y+x_' + \
+    configs[i]['name'] = 'bL16_sl32_CeLoss.TestWordsNoise.3.Noisex0.1CosSimv1_6xTr_TanhSubLay.25_Mha16hDense_Ffnd4_Ffn1xH(x,y)*y+x_' + \
+        'Mha128h4xPool_MaxPoolMaskFix_4096d_Snli_Lr8e-5dec0.96.1LenFix2_'+str(i)
 
-# drop 0.1 long training
-# ffn hidx2
 
 task = 'Anli'
 if (task != 'Snli') and (task != 'Mnli') and (task != 'Anli'):

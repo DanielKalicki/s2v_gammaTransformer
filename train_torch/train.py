@@ -4,6 +4,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 from models.s2v_gammaTransformer import SentenceEncoder
 from batchers.anli_batch import AnliBatch
+from batchers.autoencoder_batch import AutoencoderBatch
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
 import time
@@ -19,6 +20,59 @@ if config['training']['log']:
     now = datetime.now()
     writer = SummaryWriter(log_dir="./train_torch/logs/"+config['name'])
 
+
+def pretrain(model, device, train_loader, optimizer, epoch):
+    model.train()
+    words_correct = 0
+    words_total = 0
+    start = time.time()
+    pbar = tqdm(total=len(train_loader), dynamic_ncols=True)
+    # TODO remove duplicated code
+    for batch_idx, (sent1, sent1_mask, sent2, sent2_mask, words1, words1_labels, words2, words2_labels) in enumerate(train_loader):
+        sent1, sent1_mask = sent1.to(device), sent1_mask.to(device)
+        sent2, sent2_mask = sent2.to(device), sent2_mask.to(device)
+        words1, words1_labels = words1.to(device), words1_labels.to(device)
+        words2, words2_labels = words2.to(device), words2_labels.to(device)
+
+        optimizer.zero_grad()
+
+        # model prediction
+        _, _, _, words1_pred, words2_pred = model(sent1, sent2, sent1_mask=sent1_mask, sent2_mask=sent2_mask, test_words1=words1, test_words2=words2)
+
+        words1_pred = words1_pred.view(-1, 2)
+        words1_labels = words1_labels.view(-1, 2)
+        words1_pred_loss = F.binary_cross_entropy_with_logits(words1_pred, words1_labels, reduction='mean')
+        
+        words2_pred = words2_pred.view(-1, 2)
+        words2_labels = words2_labels.view(-1, 2)
+        words2_pred_loss = F.binary_cross_entropy_with_logits(words2_pred, words2_labels, reduction='mean')
+
+        pred_loss = words1_pred_loss + words2_pred_loss
+        pred_loss.backward(retain_graph=True)
+        optimizer.step()
+
+        _, pred_idx = torch.max(words1_pred, 1)
+        _, label_idx = torch.max(words1_labels, 1)
+        words_total += words1_labels.size(0)
+        words_correct += (pred_idx == label_idx).sum().item()
+
+        _, pred_idx = torch.max(words2_pred, 1)
+        _, label_idx = torch.max(words2_labels, 1)
+        words_total += words2_labels.size(0)
+        words_correct += (pred_idx == label_idx).sum().item()
+
+        pbar.set_description("Acc: " + str(round(100.0*words_correct/words_total, 1)) + "%")
+        pbar.update(1)
+
+    pbar.close()
+    end = time.time()
+    print("")
+    print('Epoch {}:\tPretrain'.format(epoch))
+    print('\t\tAverage acc: {:.4f}'.format(100.0*words_correct/words_total))
+    print('\t\tTraining time: {:.2f}'.format((end - start)))
+    if config['training']['log']:
+        writer.add_scalar('acc_words/pretrain', 100.0*words_correct/words_total, epoch)
+        writer.flush()
 
 def train(model, device, train_loader, optimizer, epoch):
     model.train()
@@ -45,9 +99,10 @@ def train(model, device, train_loader, optimizer, epoch):
 
         # model prediction
         # s2v_sent1, s2v_sent2, pred_class = model(sent1, sent2, sent1_mask=sent1_mask, sent2_mask=sent2_mask)
-        s2v_sent1, s2v_sent2, pred_class, twords_pred = model(sent1, sent2, sent1_mask=sent1_mask, sent2_mask=sent2_mask, test_words=twords)
+        s2v_sent1, s2v_sent2, pred_class, _, twords_pred = model(sent1, sent2, sent1_mask=sent1_mask, sent2_mask=sent2_mask, test_words1=twords, test_words2=twords)
 
         # pred_loss = F.binary_cross_entropy_with_logits(pred_class, label, reduction='mean')
+        pred_loss = 0
         pred_loss = F.cross_entropy(pred_class, label.to(torch.long), reduction='mean')
         train_loss += pred_loss.detach()
 
@@ -62,11 +117,12 @@ def train(model, device, train_loader, optimizer, epoch):
         # contr_loss = F.triplet_margin_loss(s2v_contr_anchor[1:], s2v_contr_positive[1:], s2v_contr_negative[:-1])
         # train_contr_loss += contr_loss.detach()
 
-        s2v_contr_negative = s2v_sent1
-        s2v_contr_positive = s2v_sent2
-        sent_anchor1 = F.dropout(sent2, 0.3)*(1-0.3)
-        sent_anchor2 = F.dropout(sent2, 0.3)*(1-0.3)
-        s2v_contr_anchor1, s2v_contr_anchor2, _, _ = model(sent_anchor1, sent_anchor2, sent1_mask=sent2_mask, sent2_mask=sent2_mask, test_words=twords)
+        # ----------
+        # s2v_contr_negative = s2v_sent1
+        # s2v_contr_positive = s2v_sent2
+        # sent_anchor1 = F.dropout(sent2, 0.3)*(1-0.3)
+        # sent_anchor2 = F.dropout(sent2, 0.3)*(1-0.3)
+        # s2v_contr_anchor1, s2v_contr_anchor2, _, _ = model(sent_anchor1, sent_anchor2, sent1_mask=sent2_mask, sent2_mask=sent2_mask, test_words=twords)
 
         # contr_loss1 = F.triplet_margin_loss(s2v_contr_anchor1, s2v_contr_positive, s2v_contr_negative)
         # contr_loss1_p = (s2v_contr_anchor1 - s2v_contr_positive).pow(2).mean()
@@ -74,22 +130,17 @@ def train(model, device, train_loader, optimizer, epoch):
         # contr_loss = contr_loss1_p + contr_loss2_p
         # train_contr_loss += contr_loss.detach()
 
-        contr_loss1_p = F.cosine_similarity(s2v_contr_anchor1, s2v_contr_positive).mean()
-        contr_loss1_n = F.cosine_similarity(s2v_contr_anchor1, s2v_contr_negative).mean()
-        contr_loss = F.relu(contr_loss1_p - contr_loss1_n + 1.0)
-        train_contr_loss += contr_loss.detach()
-
-        # print("------------")
-        # print(s2v_contr_anchor1[1])
-        # print(s2v_contr_positive[1])
-        # print(s2v_contr_negative[1])
-        # print(contr_loss)
+        # ----------
+        # contr_loss1_p = F.cosine_similarity(s2v_contr_anchor1, s2v_contr_positive).mean()
+        # contr_loss1_n = F.cosine_similarity(s2v_contr_anchor1, s2v_contr_negative).mean()
+        # contr_loss = F.relu(contr_loss1_p - contr_loss1_n + 1.0)
+        # train_contr_loss += contr_loss.detach()
 
         # s2v_mean_loss = torch.sum(torch.mean(torch.pow(s2v_sent1, 2), dim=1)) + torch.sum(torch.mean(torch.pow(s2v_sent2, 2), dim=1))
         # train_s2v_mean_loss += s2v_mean_loss.detach()
 
         # pred_loss = pred_loss + 0.1*words_pred_loss + 0.1*s2v_mean_loss + 0.1*order_pred_loss
-        pred_loss = pred_loss + 0.1*words_pred_loss + 0.1*contr_loss
+        pred_loss = pred_loss + 0.1*words_pred_loss # + 0.1*contr_loss
 
         pred_loss.backward(retain_graph=True)
         optimizer.step()
@@ -141,15 +192,13 @@ def test(model, device, test_loader, epoch):
 
             # model prediction
             # s2v_sent1, s2v_sent2, pred_class, twords_pred = model(sent1, sent2, sent1_mask=sent1_mask, sent2_mask=sent2_mask, test_words=twords)
-            s2v_sent1, s2v_sent2, pred_class, twords_pred = model(sent1, sent2, sent1_mask=sent1_mask, sent2_mask=sent2_mask, test_words=twords)
+            s2v_sent1, s2v_sent2, pred_class, _, twords_pred = model(sent1, sent2, sent1_mask=sent1_mask, sent2_mask=sent2_mask, test_words1=twords, test_words2=twords)
 
             # model training
-            # pred_loss = F.binary_cross_entropy_with_logits(pred_class, label, reduction='mean')
             pred_loss = F.cross_entropy(pred_class, label.to(torch.long), reduction='mean')
             test_loss += pred_loss.detach()
 
             _, pred_idx = torch.max(pred_class, 1)
-            # _, label_idx = torch.max(label, 1)
             label_idx = label
             total += label.size(0)
             correct += (pred_idx == label_idx).sum().item()
@@ -176,23 +225,34 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # model
 model = SentenceEncoder(config)
-optimizer = optim.Adam(model.parameters(), lr=config['training']['lr'])
 print(model)
 model.to(device)
 start_epoch = 1
 
+# pretrain
+if config['training']['pretrain']:
+    dataset_train = AutoencoderBatch(config)
+    data_loader_train = torch.utils.data.DataLoader(
+        dataset_train, batch_size=config['batch_size'],
+        shuffle=True, num_workers=0)
+
+    optimizer = optim.Adam(model.parameters(), lr=config['training']['lr'])
+    for epoch in range(0, 1):
+        pretrain(model, device, data_loader_train, optimizer, epoch)
+        dataset_train.on_epoch_end()
+
+# training
 dataset_train = AnliBatch(config)
 data_loader_train = torch.utils.data.DataLoader(
     dataset_train, batch_size=config['batch_size'],
     shuffle=True, num_workers=0)
-
 dataset_test = AnliBatch(config, valid=True)
 data_loader_test = torch.utils.data.DataLoader(
     dataset_test, batch_size=config['batch_size'],
     shuffle=False, num_workers=0)
 
-# scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.85)
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.96)
+optimizer = optim.Adam(model.parameters(), lr=config['training']['lr'])
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.92)
 test_loss = 1e6
 for epoch in range(start_epoch, config['training']['epochs'] + 1):
     train(model, device, data_loader_train, optimizer, epoch)

@@ -105,11 +105,11 @@ class TransformerEncoderLayer(nn.Module):
         # self.linear2_mha = nn.Linear(d_model, d_model)
 
         self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
-        # self.self_attn = MultiheadAttention(d_model, nhead, dropout=dropout, out_dim_mult=0.25)
+        # self.self_attn = MultiheadAttention(d_model, nhead, dropout=dropout, out_dim_mult=1)
         # self.self_attn2 = MultiheadAttention(d_model, nhead, dropout=dropout, out_dim_mult=1)
         self.dropout1 = nn.Dropout(dropout)
         self.dropout2 = nn.Dropout(dropout)
-        self.dropout3 = nn.Dropout(dropout)
+        # self.dropout3 = nn.Dropout(dropout)
 
         self.norm1 = nn.LayerNorm(d_model)
         # self.norm1_ = nn.LayerNorm(d_model)
@@ -124,6 +124,8 @@ class TransformerEncoderLayer(nn.Module):
         self.gate2 = nn.Linear(d_model*2, d_model)
         self.gate2_act = F.gelu
         self.gate2_l2 = nn.Linear(d_model, d_model)
+
+        self.src_gate = nn.Linear(d_model, d_model)
 
     def __setstate__(self, state):
         if 'activation' not in state:
@@ -148,9 +150,11 @@ class TransformerEncoderLayer(nn.Module):
                               key_padding_mask=src_key_padding_mask)[0]
         # src2 = self.self_attn2(src2, src2, src2, attn_mask=src_mask,
         #                       key_padding_mask=src_key_padding_mask)[0]
+        # src2 = self.self_attn2(src2, src2, src2, attn_mask=src_mask,
+        #                       key_padding_mask=src_key_padding_mask)[0]
         # src2 = self.linear2_mha(self.dropout_mha(self.activation_mha(self.linear1_mha(src2))))
         g2 = torch.sigmoid(self.gate1_l2(self.gate1_act(self.gate1(torch.cat((src, src2), dim=2)))))
-        src2 = torch.tanh(src2) * g2
+        src2 = src2 * g2
         src = src + self.dropout1(src2)*0.25
         src = self.norm1(src)
 
@@ -161,7 +165,7 @@ class TransformerEncoderLayer(nn.Module):
         # src2 = self.linear2(self.dropout(self.activation(src2)))
         # g2 = torch.sigmoid(self.gate2(torch.cat((src, src2), dim=2)))
         g2 = torch.sigmoid(self.gate2_l2(self.gate2_act(self.gate2(torch.cat((src, src2), dim=2)))))
-        src2 = torch.tanh(src2) * g2
+        src2 = src2 * g2
         src = src + self.dropout2(src2)*0.25
         src = self.norm2(src)
 
@@ -193,8 +197,20 @@ class SentenceEncoder(nn.Module):
         mha_dim = config['sentence_encoder']['pooling']['mha']['inner_dim']
         mha_drop = config['sentence_encoder']['pooling']['mha']['attention_dropout']
         out_dim_mult = int(mha_dim/word_edim)
+        # self.k_fc = nn.Linear(word_edim, word_edim)
         self.mha_pool = MultiheadAttention(word_edim, mha_nhead, dropout=mha_drop, out_dim_mult=out_dim_mult)
+        # self.mha_pool_1h = MultiheadAttention(word_edim, 1, dropout=mha_drop, out_dim_mult=out_dim_mult)
+        # self.mha_pool_4h = MultiheadAttention(word_edim, 4, dropout=mha_drop, out_dim_mult=out_dim_mult)
+        # self.mha_pool_16h = MultiheadAttention(word_edim, 16, dropout=mha_drop, out_dim_mult=out_dim_mult)
+        # self.mha_pool_64h = MultiheadAttention(word_edim, 64, dropout=mha_drop, out_dim_mult=out_dim_mult)
+        # self.mha_pool_1h_gate = nn.Linear(word_edim, word_edim)
+        # self.mha_pool_4h_gate = nn.Linear(word_edim, word_edim)
+        # self.mha_pool_16h_gate = nn.Linear(word_edim, word_edim)
+        # self.mha_pool_64h_gate = nn.Linear(word_edim, word_edim)
         # self.dense_sent = DenseLayer(word_edim, word_edim, word_edim, cat_dim=2)
+
+        # self.sent_gate_l1 = nn.Linear(word_edim, word_edim*4)
+        # self.sent_gate_l2 = nn.Linear(word_edim*4, word_edim)
 
         # nli classifier
         class_dropout = config['classifier_network']['in_dropout']
@@ -216,7 +232,25 @@ class SentenceEncoder(nn.Module):
 
         sent = sent.permute((1, 0, 2))
         sent = self.gtr(sent, src_key_padding_mask=sent_mask)
+        # k = F.gelu(self.k_fc(sent))
+        # sent_mha_gate, _ = self.mha_pool_1h(sent, sent, sent, key_padding_mask=sent_mask)
+        # sent_g = torch.sigmoid(self.sent_gate_l2(F.gelu(self.sent_gate_l1(sent_mha_gate))))
+
+        # sent = torch.cat([sent, sent_g], dim=2)
+
         sent, _ = self.mha_pool(sent, sent, sent, key_padding_mask=sent_mask)
+        # sent1h, _ = self.mha_pool_1h(sent, sent, sent, key_padding_mask=sent_mask)
+        # sent4h, _ = self.mha_pool_4h(sent, sent, sent, key_padding_mask=sent_mask)
+        # sent16h, _ = self.mha_pool_16h(sent, sent, sent, key_padding_mask=sent_mask)
+        # sent64h, _ = self.mha_pool_64h(sent, sent, sent, key_padding_mask=sent_mask)
+        # g1h = F.sigmoid(self.mha_pool_1h_gate(sent))
+        # g4h = F.sigmoid(self.mha_pool_4h_gate(sent))
+        # g16h = F.sigmoid(self.mha_pool_16h_gate(sent))
+        # g64h = F.sigmoid(self.mha_pool_64h_gate(sent))
+        # sent = torch.cat([sent1h, sent4h, sent16h, sent64h], dim=2)
+        # sent = sent + g1h*sent1h + g4h*sent4h + g16h*sent16h + g64h*sent64h
+
+
         sent = sent.permute((1, 0, 2))
 
         sent_mask = torch.cat([sent_mask.unsqueeze(2)]*sent.shape[2], dim=2).type(torch.cuda.FloatTensor)
@@ -224,7 +258,7 @@ class SentenceEncoder(nn.Module):
 
         return s2v
 
-    def forward(self, sent1, sent2, sent1_mask=None, sent2_mask=None, test_words=None):
+    def forward(self, sent1, sent2, sent1_mask=None, sent2_mask=None, test_words1=None, test_words2=None):
         s2v_sent1 = self._emb_sent(sent1, sent1_mask)
         s2v_sent2 = self._emb_sent(sent2, sent2_mask)
 
@@ -234,10 +268,17 @@ class SentenceEncoder(nn.Module):
         x_class = self.act1(x_class)
         x_class = self.fc2(x_class)
 
-        sent2_tile = torch.cat([s2v_sent2.unsqueeze(1)]*self.config['max_sent_len'], dim=1)
-        word_pred = torch.cat((sent2_tile, test_words), dim=2)
-        word_pred = self.tw_fc1(word_pred)
-        word_pred = self.tw_act1(word_pred)
-        word_pred = self.tw_fc2(word_pred)
+        # TODO remove duplicated code
+        sent1_tile = torch.cat([s2v_sent1.unsqueeze(1)]*self.config['max_sent_len'], dim=1)
+        word1_pred = torch.cat((sent1_tile, test_words1), dim=2)
+        word1_pred = self.tw_fc1(word1_pred)
+        word1_pred = self.tw_act1(word1_pred)
+        word1_pred = self.tw_fc2(word1_pred)
 
-        return s2v_sent1, s2v_sent2, x_class, word_pred
+        sent2_tile = torch.cat([s2v_sent2.unsqueeze(1)]*self.config['max_sent_len'], dim=1)
+        word2_pred = torch.cat((sent2_tile, test_words2), dim=2)
+        word2_pred = self.tw_fc1(word2_pred)
+        word2_pred = self.tw_act1(word2_pred)
+        word2_pred = self.tw_fc2(word2_pred)
+
+        return s2v_sent1, s2v_sent2, x_class, word1_pred, word2_pred

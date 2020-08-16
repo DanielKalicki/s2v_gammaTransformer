@@ -85,54 +85,6 @@ class AnliBatch(Dataset):
                     open(self.batch_dir + mnli_test_file_list[0], 'rb')))
             random.shuffle(batch_train_data)
 
-    def _init_batch_old(self):
-        """
-        Read dataset into memory
-        """
-        global batch_train_data, batch_valid_data
-
-        if not self.valid:
-            batch_train_data = []
-
-            snli_train_files_list = []
-            snli_test_file_list = []
-            mnli_train_files_list = []
-            mnli_test_file_list = []
-            batch_files = os.listdir(self.batch_dir)
-            for batch in batch_files:
-                if ('train' in batch) and ('snli' in batch):
-                    snli_train_files_list.append(batch)
-                elif ('test' in batch) and ('snli' in batch):
-                    snli_test_file_list.append(batch)
-                elif ('train' in batch) and ('mnli' in batch):
-                    mnli_train_files_list.append(batch)
-                elif ('mismatched' in batch) and ('multinli' in batch):
-                    mnli_test_file_list.append(batch)
-
-            self.train_batch_part += 1
-            if self.train_batch_part >= len(snli_train_files_list):
-                self.train_batch_part = 0
-            print(self.train_batch_part)
-
-            snli_train_files_list.sort()
-            mnli_train_files_list.sort()
-            snli_train_file = snli_train_files_list[self.train_batch_part]
-            mnli_train_file = mnli_train_files_list[self.train_batch_part]
-            print(snli_train_file)
-            print(mnli_train_file)
-            print("")
-
-            batch_train_data = pickle.load(
-                open(self.batch_dir + snli_train_file, 'rb'))
-            batch_train_data.extend(pickle.load(
-                open(self.batch_dir + mnli_train_file, 'rb')))
-            random.shuffle(batch_train_data)
-            if len(batch_valid_data) == 0:
-                batch_valid_data = pickle.load(
-                    open(self.batch_dir + snli_test_file_list[0], 'rb'))
-                batch_valid_data.extend(pickle.load(
-                    open(self.batch_dir + mnli_test_file_list[0], 'rb')))
-
     def on_epoch_end(self):
         self._init_batch()
 

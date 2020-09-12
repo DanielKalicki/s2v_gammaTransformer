@@ -115,7 +115,7 @@ default_config = {
                + [5e-7]*2 + [2e-7]*2 + [1e-7]*6),
         'label_smoothing': 0.2,
         'label_noise': 0.0,
-        'epochs': 70,
+        'epochs': 140,
         'log': True,
         'pretrain': False
     }
@@ -429,19 +429,19 @@ for i in range(63, 64):
         'Ffn(x,y)*y + x'
     configs[i]['sentence_encoder']['pooling']['mha']['inner_dim'] = 4*1024
     configs[i]['sentence_encoder']['transformer']['num_layers'] = 6
-    configs[i]['sentence_encoder']['transformer']['residual_dropout'] = 0.0
+    configs[i]['sentence_encoder']['transformer']['residual_dropout'] = 0.1
     configs[i]['sentence_encoder']['transformer']['ffn_dim'] = 256
     configs[i]['sentence_encoder']['pooling']['mha']['num_heads'] = 128
     configs[i]['classifier_network']['in_dropout'] = 0.0
-    configs[i]['max_sent_len'] = 64
-    configs[i]['batch_size'] = 16
+    configs[i]['max_sent_len'] = 16
+    configs[i]['batch_size'] = 24
     configs[i]['training']['optimizer'] = 'Adam'
     configs[i]['training']['label_smoothing'] = 0.0
     configs[i]['training']['clipnorm'] = -1.0
-    configs[i]['training']['lr'] = 1e-4
-    configs[i]['training']['pretrain'] = True
-    configs[i]['name'] = 'bL16_sl64_pretrain1_CeLoss.TestWordsNoise.3_6xTr_SubLay.25_Mha16hDense_Ffnd4_Ffn1xH(x,y)*y+x_' + \
-        '_Mha128hPool_MaxPoolMaskFix_4096d_Snli_Lr1e-4dec0.92_'+str(i)
+    configs[i]['training']['lr'] = 8e-5
+    configs[i]['training']['pretrain'] = False
+    configs[i]['name'] = 'bL24_sl16_1wDrop_CeLoss_6xTrPreNormGelu_SubLayi.25_Mha16Dense_Ffnd4_W(x,y)*y+x_' + \
+        '_Mha128hPool_MeanPoolMask_4096d_Snli_Lr8e-5.dec0.94_'+str(i)
 
 
 task = 'Anli'

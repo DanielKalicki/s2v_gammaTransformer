@@ -113,12 +113,7 @@ class AnliBatch(Dataset):
                                 dtype=torch.float)
         sentence2_mask = torch.ones((self.config['max_sent_len'],),
                                     dtype=torch.bool)
-        # label = torch.zeros((3,), dtype=torch.float)
         label = torch.zeros((1,), dtype=torch.long)
-
-        test_words = torch.zeros((self.config['max_sent_len'], self.config['word_edim'],),
-                                  dtype=torch.float)
-        test_labels = torch.zeros((self.config['max_sent_len'], 2), dtype=torch.float)
 
         batch_dataset = batch_valid_data if self.valid else batch_train_data
 
@@ -136,24 +131,15 @@ class AnliBatch(Dataset):
             torch.from_numpy(sent2[0:min(len(sent2), self.config['max_sent_len'])].astype(np.float32))
         sentence2_mask[0:min(len(sent2), self.config['max_sent_len'])] = torch.tensor(0.0)
 
-        # label[nli_label] = 1.0
+        if not self.valid:
+            word_to_drop = random.randint(0, min(len(sent1), self.config['max_sent_len'])-1)
+            sentence1[word_to_drop] = torch.zeros((self.config['word_edim'],), dtype=torch.float)
+            word_to_drop = random.randint(0, min(len(sent2), self.config['max_sent_len'])-1)
+            sentence2[word_to_drop] = torch.zeros((self.config['word_edim'],), dtype=torch.float)
+
         label = nli_label
 
-        for test_idx in range(self.config['max_sent_len']):
-            rnd = random.choice([False, True])
-            if rnd:
-                rnd_word = random.randint(0, min(len(sent2), self.config['max_sent_len'])-1)
-                test_words[test_idx] = torch.from_numpy((sent2[rnd_word] + np.random.normal(scale=0.3, size=(self.config['word_edim']))).astype(np.float32))
-            else:
-                rnd_batch = random.randint(0, len(batch_dataset)-2)
-                if rnd_batch == idx:
-                    rnd_batch = len(batch_dataset)-1
-                rnd_sent = batch_dataset[rnd_batch]['sentences_emb'][1]
-                rnd_word = random.randint(0, len(rnd_sent)-1)
-                test_words[test_idx] = torch.from_numpy((rnd_sent[rnd_word] + np.random.normal(scale=0.3, size=(self.config['word_edim']))).astype(np.float32))
-            test_labels[test_idx][int(rnd)] = 1.0
-
-        return sentence1, sentence1_mask, sentence2, sentence2_mask, label, test_words, test_labels
+        return sentence1, sentence1_mask, sentence2, sentence2_mask, label
 
 def test():
     batcher = AnliBatch({

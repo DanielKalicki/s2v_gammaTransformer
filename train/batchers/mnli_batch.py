@@ -12,7 +12,7 @@ batch_train_data = []
 batch_valid_data = []
 
 
-class SnliBatch(tf.keras.utils.Sequence):
+class MnliBatch(tf.keras.utils.Sequence):
     def __init__(self, config, valid=False):
         """
         Initialize batcher
@@ -21,7 +21,7 @@ class SnliBatch(tf.keras.utils.Sequence):
         self.config = config
         self.valid = valid
 
-        self.datasets_dir = "./datasets/snli_1.0/"
+        self.datasets_dir = "./datasets/multinli_1.0/"
         self.batch_dir = './train_torch/datasets/'
         self.labels = ['contradiction', 'neutral', 'entailment']
 
@@ -146,9 +146,9 @@ class SnliBatch(tf.keras.utils.Sequence):
         test_file_list = []
         batch_files = os.listdir(self.batch_dir)
         for batch in batch_files:
-            if ('train' in batch) and ('snli' in batch):
+            if ('train' in batch) and ('mnli' in batch):
                 train_files_list.append(batch)
-            elif ('test' in batch) and ('snli' in batch):
+            elif ('mismatched' in batch) and ('multinli' in batch):
                 test_file_list.append(batch)
 
         self.train_batch_part += 1
@@ -275,7 +275,7 @@ def create_attention_mask(pad_mask: Optional[np.array], is_causal: bool,
 
 
 def test():
-    batcher = SnliBatch({
+    batcher = MnliBatch({
         'batch_size': 2,
         'max_sent_cnt': 6,
         'max_sent_len': 64,

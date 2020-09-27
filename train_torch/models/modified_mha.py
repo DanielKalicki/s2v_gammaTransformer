@@ -4,6 +4,7 @@ from torch.nn.init import constant_
 from torch.nn.init import xavier_normal_
 from torch.nn.parameter import Parameter
 from torch.nn.functional import linear, softmax, dropout, pad  #, handle_torch_function, has_torch_function
+import torch.nn.functional as F
 from torch.nn import Module
 from torch import Tensor
 
@@ -295,11 +296,17 @@ def multi_head_attention_forward(query,                           # type: Tensor
         )
         attn_output_weights = attn_output_weights.view(bsz * num_heads, tgt_len, src_len)
 
+    # attn_output_weights = softmax(
     attn_output_weights = softmax(
         attn_output_weights, dim=-1)
     attn_output_weights = dropout(attn_output_weights, p=dropout_p, training=training)
 
+    # attn_output_weights_ = F.softmin(
+    #     attn_output_weights, dim=-1)
+    # attn_output_weights_ = dropout(attn_output_weights_, p=dropout_p, training=training)
+
     attn_output = torch.bmm(attn_output_weights, v)
+    # attn_output = torch.bmm(attn_output_weights, v) + torch.bmm(attn_output_weights_, -1*v)
     assert list(attn_output.size()) == [bsz * num_heads, tgt_len, head_dim]
     embed_dim = int(embed_dim*out_dim_mult)
     attn_output = attn_output.transpose(0, 1).contiguous().view(tgt_len, bsz, embed_dim)

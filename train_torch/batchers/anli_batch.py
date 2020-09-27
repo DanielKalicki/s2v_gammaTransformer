@@ -7,6 +7,8 @@ import random
 random.seed(0)
 import torch
 from torch.utils.data import Dataset
+import json
+import re
 # from flair.embeddings import RoBERTaEmbeddings
 # from flair.data import Sentence
 
@@ -23,11 +25,63 @@ class AnliBatch(Dataset):
         self.config = config
         self.valid = valid
 
-        self.batch_dir = './train/datasets/'
+        self.batch_dir = './train_torch/datasets/'
         self.labels = ['contradiction', 'neutral', 'entailment']
 
-        self.train_batch_part = -1
+        self.word_list = self._load_word_list()
+        self.word_dict = {}
+        for widx, word in enumerate(self.word_list):
+            self.word_dict[word] = widx
+        print(len(self.word_list))
+
+        # self.train_batch_part = -1
+        self.snli_train_batch_part = -1
+        self.mnli_train_batch_part = -1
         self._init_batch()
+
+    def _process_word(self, word):
+        word = word.lower()
+        word = word.replace("!", "")
+        word = word.replace("\\", "")
+        word = word.replace(",", "")
+        word = word.replace(".", "")
+        word = word.replace("?", "")
+        word = word.replace('"', "")
+        word = word.replace("(", "")
+        word = word.replace(")", "")
+        return word
+
+    def _load_word_list(self):
+        words_file_exists = False
+        words = {}
+        batch_files = os.listdir(self.batch_dir)
+        for file in batch_files:
+            if 'words.json' in file:
+                words_file_exists = True
+                with open(self.batch_dir+file, 'r') as f:
+                    words_list = json.load(f)
+                    return words_list
+        if not words_file_exists:
+            for file in batch_files:
+                if 'pickle' in file:
+                    print(file)
+                    data = pickle.load(open(self.batch_dir + file, 'rb'))
+                    for batch in data:
+                        for sent in batch['sentences_words']:
+                            for word in sent:
+                                word_ = self._process_word(word)
+                                if not word_ in words:
+                                    words[word_] = 0
+                                words[word_] += 1
+            words_list = []
+            for word in words:
+                if words[word] > 100:
+                    words_list.append(word)
+            with open(self.batch_dir+'words.json', 'w') as f:
+                json.dump(words_list, f, indent=1)
+                print(len(words_list))
+                exit(0)
+        return words_list
 
     def _init_batch(self):
         """
@@ -48,35 +102,33 @@ class AnliBatch(Dataset):
                     snli_train_files_list.append(batch)
                 elif ('test' in batch) and ('snli' in batch):
                     snli_test_file_list.append(batch)
-                elif ('train' in batch) and ('mnli' in batch):
+                elif ('train' in batch) and ('multinli' in batch):
                     mnli_train_files_list.append(batch)
                 elif ('mismatched' in batch) and ('multinli' in batch):
                     mnli_test_file_list.append(batch)
 
-            self.train_batch_part += 1
-            if self.train_batch_part >= len(snli_train_files_list)//3:
-                self.train_batch_part = 0
-            print(self.train_batch_part)
+            self.snli_train_batch_part += 1
+            if self.snli_train_batch_part >= len(snli_train_files_list):
+                self.snli_train_batch_part = 0
+            self.mnli_train_batch_part += 1
+            if self.mnli_train_batch_part >= len(mnli_train_files_list):
+                self.mnli_train_batch_part = 0
 
-            snli_train_files_list.sort()
-            mnli_train_files_list.sort()
+            # self.snli_train_batch_part += 1
+            # if self.train_batch_part >= len(snli_train_files_list)//1:
+            #     self.train_batch_part = 0
+            # print(self.train_batch_part)
+
+            # snli_train_files_list.sort()
+            # mnli_train_files_list.sort()
+            # random.shuffle(snli_train_files_list)
+            # random.shuffle(mnli_train_files_list)
             batch_train_data = []
-            for ifile in range(4):
-                snli_train_file = None
-                try:
-                    snli_train_file = snli_train_files_list[self.train_batch_part*4 + ifile]
-                except IndexError:
-                    pass
-                mnli_train_file = mnli_train_files_list[self.train_batch_part*4 + ifile]
-                print(snli_train_file)
-                print(mnli_train_file)
-                print("")
 
-                if snli_train_file:
-                    batch_train_data.extend(pickle.load(
-                        open(self.batch_dir + snli_train_file, 'rb')))
-                batch_train_data.extend(pickle.load(
-                    open(self.batch_dir + mnli_train_file, 'rb')))
+            batch_train_data.extend(pickle.load(
+                open(self.batch_dir + snli_train_files_list[self.snli_train_batch_part], 'rb')))
+            batch_train_data.extend(pickle.load(
+                open(self.batch_dir + mnli_train_files_list[self.mnli_train_batch_part], 'rb')))
 
             if len(batch_valid_data) == 0:
                 batch_valid_data = pickle.load(
@@ -94,7 +146,7 @@ class AnliBatch(Dataset):
         if self.valid:
             return len(batch_valid_data)
         else:
-            return int(len(batch_train_data)/10)
+            return int(len(batch_train_data)/4)
 
     def __getitem__(self, idx):
         """
@@ -114,10 +166,12 @@ class AnliBatch(Dataset):
         sentence2_mask = torch.ones((self.config['max_sent_len'],),
                                     dtype=torch.bool)
         label = torch.zeros((1,), dtype=torch.long)
+        sent2_words = torch.zeros((len(self.word_list), 2), dtype=torch.float)
 
         batch_dataset = batch_valid_data if self.valid else batch_train_data
 
-        idx = random.randint(0, len(batch_dataset)-1)
+        # if not self.valid:
+            # idx = random.randint(0, len(batch_dataset)-1)
 
         sent1 = batch_dataset[idx]['sentences_emb'][0]
         sent2 = batch_dataset[idx]['sentences_emb'][1]
@@ -131,15 +185,22 @@ class AnliBatch(Dataset):
             torch.from_numpy(sent2[0:min(len(sent2), self.config['max_sent_len'])].astype(np.float32))
         sentence2_mask[0:min(len(sent2), self.config['max_sent_len'])] = torch.tensor(0.0)
 
-        if not self.valid:
-            word_to_drop = random.randint(0, min(len(sent1), self.config['max_sent_len'])-1)
-            sentence1[word_to_drop] = torch.zeros((self.config['word_edim'],), dtype=torch.float)
-            word_to_drop = random.randint(0, min(len(sent2), self.config['max_sent_len'])-1)
-            sentence2[word_to_drop] = torch.zeros((self.config['word_edim'],), dtype=torch.float)
+        # for word_idx in range(len(self.word_list)):
+        #     sent2_words[word_idx][0] = True
+        # for word in batch_dataset[idx]['sentences_words'][1]:
+        #     word_ = self._process_word(word)
+        #     if word_ in self.word_dict:
+        #         sent2_words[self.word_dict[word_]][1] = True
+
+        # if not self.valid:
+        #     word_to_drop = random.randint(0, min(len(sent1), self.config['max_sent_len'])-1)
+        #     sentence1[word_to_drop] = torch.zeros((self.config['word_edim'],), dtype=torch.float)
+        #     word_to_drop = random.randint(0, min(len(sent2), self.config['max_sent_len'])-1)
+        #     sentence2[word_to_drop] = torch.zeros((self.config['word_edim'],), dtype=torch.float)
 
         label = nli_label
 
-        return sentence1, sentence1_mask, sentence2, sentence2_mask, label
+        return sentence1, sentence1_mask, sentence2, sentence2_mask, label, sent2_words
 
 def test():
     batcher = AnliBatch({

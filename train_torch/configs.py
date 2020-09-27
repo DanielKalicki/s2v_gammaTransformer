@@ -115,7 +115,7 @@ default_config = {
                + [5e-7]*2 + [2e-7]*2 + [1e-7]*6),
         'label_smoothing': 0.2,
         'label_noise': 0.0,
-        'epochs': 140,
+        'epochs': 1400,
         'log': True,
         'pretrain': False
     }
@@ -427,21 +427,27 @@ for i in range(63, 64):
     configs[i]['sentence_encoder']['input_drop'] = 0.0
     configs[i]['sentence_encoder']['transformer']['gate_type'] = \
         'Ffn(x,y)*y + x'
-    configs[i]['sentence_encoder']['pooling']['mha']['inner_dim'] = 4*1024
-    configs[i]['sentence_encoder']['transformer']['num_layers'] = 6
-    configs[i]['sentence_encoder']['transformer']['residual_dropout'] = 0.1
+    configs[i]['sentence_encoder']['pooling']['mha']['inner_dim'] = 2*1024
+    configs[i]['sentence_encoder']['transformer']['num_layers'] = 4
+    configs[i]['sentence_encoder']['transformer']['residual_dropout'] = 0.0
     configs[i]['sentence_encoder']['transformer']['ffn_dim'] = 256
+    configs[i]['sentence_encoder']['transformer']['num_heads'] = 16
     configs[i]['sentence_encoder']['pooling']['mha']['num_heads'] = 128
     configs[i]['classifier_network']['in_dropout'] = 0.0
-    configs[i]['max_sent_len'] = 16
+    configs[i]['max_sent_len'] = 64
     configs[i]['batch_size'] = 24
-    configs[i]['training']['optimizer'] = 'Adam'
+    configs[i]['training']['optimizer'] = 'AdamW'
     configs[i]['training']['label_smoothing'] = 0.0
-    configs[i]['training']['clipnorm'] = -1.0
+    configs[i]['training']['clipnorm'] = 1.0
     configs[i]['training']['lr'] = 8e-5
+    # configs[i]['training']['lr'] = 1e-3
     configs[i]['training']['pretrain'] = False
-    configs[i]['name'] = 'bL24_sl16_1wDrop_CeLoss_6xTrPreNormGelu_SubLayi.25_Mha16Dense_Ffnd4_W(x,y)*y+x_' + \
-        '_Mha128hPool_MeanPoolMask_4096d_Snli_Lr8e-5.dec0.94_'+str(i)
+    configs[i]['name'] = 'bL24_sl64_CeLoss_4xTrPreNormGelu_Dr.0_SubLay.25_Mha16GeluDense_Ffnd4_Softmax32(x,y)*y+x_' + \
+        '_Mha128hPool_MeanPoolMask_2*1024d_Snli_AdamLr8e-5dec.94_labelSmoothing.2_TBatchd4_'+str(i)
+        # '_Mha128hPool_MeanPoolMask_2048d_Snli_AdamWdec.1Lr8e-5dec.92_labelSmoothing.2_'+str(i)
+        # '_Mha128hPool_MeanPoolMask_4096d_Snli_Sgd1e-3_rndBatch_labelSmoothing.2_restore_'+str(i)
+        # '_Mha128hPool_MeanPoolMask_4096d_Snli_AdamWdec.1Lr8e-5dec0.92_labelSmoothing.2_restore_'+str(i)
+        # '_Mha128hPool_MeanPoolMask_4096d_rndBatch_Snli_AdamWdec.1Lr8e-5dec0.92_labelSmoothing.2_'+str(i)
 
 
 task = 'Anli'

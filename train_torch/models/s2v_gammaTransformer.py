@@ -6,6 +6,26 @@ from models.modified_mha import MultiheadAttention
 from models.dextra_unit import DExTraUnit
 from torch.nn import Parameter
 
+class NAC(nn.Module):
+    # based on https://github.com/arthurdouillard/nalu.pytorch/blob/master/nalu.py
+    def __init__(self, in_dim, out_dim, init_fun=nn.init.xavier_uniform_):
+        super().__init__()
+
+        self._W_hat = nn.Parameter(torch.empty(in_dim, out_dim))
+        self._M_hat = nn.Parameter(torch.empty(in_dim, out_dim))
+
+        self.register_parameter('W_hat', self._W_hat)
+        self.register_parameter('M_hat', self._M_hat)
+
+        for param in self.parameters():
+            init_fun(param)
+
+    def forward(self, x):
+        W = F.tanh(self._W_hat) * F.sigmoid(self._M_hat)
+        return x.matmul(W)
+
+def round_act(x):
+    return x - torch.sin(10*x*3.14)/(10*3.14)
 
 class DenseLayer(nn.Module):
     def __init__(self, input_dim=4096, hidden_dim=4096, output_dim=4096,
@@ -67,6 +87,40 @@ def _get_activation_fn(activation):
 
     raise RuntimeError("activation should be relu/gelu, not {}".format(activation))
 
+class TransformerEncoderLayer_2(nn.Module):
+    # based on https://pytorch.org/docs/stable/_modules/torch/nn/modules/transformer.html#TransformerEncoderLayer
+    def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1, activation="relu"):
+        super(TransformerEncoderLayer_2, self).__init__()
+
+        self.linear1 = nn.Linear(d_model, dim_feedforward)
+        self.activation = _get_activation_fn(activation)
+        self.dropout = nn.Dropout(dropout)
+        self.linear2 = nn.Linear(dim_feedforward, d_model)
+
+        self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
+        self.dropout1 = nn.Dropout(dropout)
+        self.dropout2 = nn.Dropout(dropout)
+
+        self.norm1 = nn.LayerNorm(d_model)
+        self.norm2 = nn.LayerNorm(d_model)
+
+    def __setstate__(self, state):
+        if 'activation' not in state:
+            state['activation'] = F.relu
+        super(TransformerEncoderLayer_2, self).__setstate__(state)
+
+    def forward(self, src, src_mask=None, src_key_padding_mask=None):
+        src_ = self.norm1(src)
+        src2 = self.self_attn(src_, src_, src_, attn_mask=src_mask,
+                              key_padding_mask=src_key_padding_mask)[0]
+        src = src + self.dropout1(src2)
+
+        src_ = self.norm2(src)
+        src2 = self.linear2(self.dropout(self.activation(self.linear1(src_))))
+        src = src + self.dropout2(src2)
+
+        return src
+
 class TransformerEncoderLayer(nn.Module):
     # based on https://pytorch.org/docs/stable/_modules/torch/nn/modules/transformer.html#TransformerEncoderLayer
     r"""TransformerEncoderLayer is made up of self-attn and feedforward network.
@@ -95,7 +149,9 @@ class TransformerEncoderLayer(nn.Module):
         self.linear1 = nn.Linear(d_model, dim_feedforward)
         self.activation = _get_activation_fn(activation)
         self.dropout = nn.Dropout(dropout)
+        # self.conv2 = nn.Conv1d(dim_feedforward, d_model, 3, padding=1)
         # self.linear2 = DenseLayer(dim_feedforward, dim_feedforward, d_model, cat_dim=2)
+        # self.self_attn_ffn = MultiheadAttention(dim_feedforward, nhead, dropout=dropout, out_dim_mult=4.0)
         self.linear2 = nn.Linear(dim_feedforward, d_model)
 
         # self.linear1_0 = nn.Linear(d_model, dim_feedforward)
@@ -113,10 +169,10 @@ class TransformerEncoderLayer(nn.Module):
         # self.dropout_mha = nn.Dropout(dropout)
         # self.linear2_mha = nn.Linear(d_model, d_model)
 
-        self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
+        # self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
         # self.self_attn = MultiheadAttention(d_model, nhead, dropout=dropout, out_dim_mult=0.5)
-        # self.self_attn = MultiheadAttention(d_model, nhead, dropout=dropout, out_dim_mult=0.25)
-        # self.linear_mha = nn.Linear(d_model//2, d_model)
+        self.self_attn = MultiheadAttention(d_model, nhead, dropout=dropout, out_dim_mult=1.0)
+        self.linear_mha = nn.Linear(d_model, d_model)
         # self.self_attn2 = MultiheadAttention(d_model, nhead, dropout=dropout, out_dim_mult=1)
         self.dropout1 = nn.Dropout(dropout)
         self.dropout2 = nn.Dropout(dropout)
@@ -167,9 +223,17 @@ class TransformerEncoderLayer(nn.Module):
         #                       key_padding_mask=src_key_padding_mask)[0]
         # src2 = self.self_attn2(src2, src2, src2, attn_mask=src_mask,
         #                       key_padding_mask=src_key_padding_mask)[0]
-        # src2 = self.linear_mha(F.gelu(src2))
+        # src2 = torch.nn.functional.normalize(src2, dim=2)
+        src2 = self.linear_mha(F.gelu(src2))
         # g2 = torch.sigmoid(self.gate1_l2(self.gate1_act(self.gate1(torch.cat((src_, src2), dim=2)))))
-        g2 = torch.sigmoid(self.gate1(torch.cat((src_, src2), dim=2)))
+        # g2 = self.gate1_l2(self.gate1_act(self.gate1(torch.cat((src_, src2), dim=2))))
+        # g2 = torch.sigmoid(self.gate1(torch.cat((src_, src2), dim=2)))
+        g2 = self.gate1(torch.cat((src_, src2), dim=2))
+        g2_shape = g2.shape
+        g2 = g2.reshape((g2_shape[0], g2_shape[1], 32, 32))
+        g2 = torch.softmax(g2, dim=-1)
+        g2 = g2.reshape((g2_shape[0], g2_shape[1], g2_shape[2]))
+        # g2 = torch.sigmoid(self.gate1(src2 + src_))
         # src_cat = torch.cat((src_, src2), dim=2)
         # g2 = torch.sigmoid(self.gate1_l2(self.gate1_act(self.gate1(src_cat,src_cat,src_cat, attn_mask=src_mask, key_padding_mask=src_key_padding_mask)[0])))
         # g2 = torch.tanh(torch.abs(self.gate1(self.gate1_rnn(src2)[0])))
@@ -185,12 +249,20 @@ class TransformerEncoderLayer(nn.Module):
         # src_ = (self.dropout_0(self.linear1_0(src_)) + self.dropout_1(self.linear1_1(src_)) + self.dropout_2(self.linear1_2(src_)) + self.dropout_3(self.linear1_3(src_))) / 4
         # src2 = self.linear2(self.dropout(self.activation(src_)))
         src2 = self.linear2(self.dropout(self.activation(self.linear1(src_))))
+        # src2 = self.dropout(self.activation(self.linear1(src_)))
+        # src2 = self.conv2(src2.permute(0,2,1)).permute(0,2,1)
         # src2 = self.conv1(src.permute(1,2,0)).permute(2,0,1)
         # src2 = self.linear2(self.dropout(self.activation(src2)))
         # g2 = torch.sigmoid(self.gate2(torch.cat((src, src2), dim=2)))
         # g2 = torch.sigmoid(self.gate2_l2(self.gate2_act(self.gate2(torch.cat((src_, src2), dim=2)))))
         # g2 = torch.sigmoid(self.gate2(torch.cat((src_, src2), dim=2)))
-        g2 = torch.sigmoid(self.gate2(torch.cat((src_, src2), dim=2)))
+        # g2 = torch.sigmoid(self.gate2(torch.cat((src_, src2), dim=2)))
+        g2 = self.gate2(torch.cat((src_, src2), dim=2))
+        g2_shape = g2.shape
+        g2 = g2.reshape((g2_shape[0], g2_shape[1], 32, 32))
+        g2 = torch.softmax(g2, dim=-1)
+        g2 = g2.reshape((g2_shape[0], g2_shape[1], g2_shape[2]))
+        # g2 = torch.sigmoid(self.gate2(src2 + src_))
         # src_cat = torch.cat((src_, src2), dim=2)
         # g2 = torch.sigmoid(self.gate2_l2(self.gate2_act(self.gate2(src_cat,src_cat,src_cat, attn_mask=src_mask, key_padding_mask=src_key_padding_mask)[0])))
         # g2 = torch.tanh(torch.abs(self.gate2(src2)))
@@ -220,12 +292,20 @@ class SentenceEncoder(nn.Module):
         num_layers = config['sentence_encoder']['transformer']['num_layers']
         dim_feedforward = config['sentence_encoder']['transformer']['ffn_dim']
         tr_drop = config['sentence_encoder']['transformer']['residual_dropout']
-
+        
         self.norm2 = nn.LayerNorm(word_edim)
 
         encoder_layer = TransformerEncoderLayer(d_model=word_edim, nhead=num_head,
                                                 dim_feedforward=dim_feedforward, dropout=tr_drop, activation="gelu")
         self.gtr = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+
+        # encoder_layer_2 = TransformerEncoderLayer(d_model=32, nhead=1,
+        #                                         dim_feedforward=32, dropout=0.0, activation="gelu")
+        # self.tr = nn.TransformerEncoder(encoder_layer_2, num_layers=4)
+        # self.conv1 = nn.Conv1d(32, 32, 3, padding=1)
+        # self.conv2 = nn.Conv1d(32, 32, 3, padding=1)
+        # self.conv3 = nn.Conv1d(32, 32, 3, padding=1)
+        # self.conv4 = nn.Conv1d(32, 32, 3, padding=1)
 
         # mha pool
         mha_nhead = config['sentence_encoder']['pooling']['mha']['num_heads']
@@ -233,6 +313,8 @@ class SentenceEncoder(nn.Module):
         mha_drop = config['sentence_encoder']['pooling']['mha']['attention_dropout']
         out_dim_mult = int(mha_dim/word_edim)
 
+        # self.mha_pool_k = MultiheadAttention(word_edim, mha_nhead, dropout=mha_drop, out_dim_mult=1.0)
+        # self.sent_fc = nn.Linear(word_edim, word_edim)
         self.mha_pool = MultiheadAttention(word_edim, mha_nhead, dropout=mha_drop, out_dim_mult=out_dim_mult)
 
         # nli classifier
@@ -243,56 +325,81 @@ class SentenceEncoder(nn.Module):
 
         self.fc1_dr = nn.Dropout(class_dropout)
         self.fc1 = nn.Linear(4*mha_dim, class_hdim)
+        # self.fc1 = NAC(4*mha_dim, class_hdim)
         self.act1 = _get_activation_fn(class_hact)
         self.fc2 = nn.Linear(class_hdim, num_classes)
+        # self.fc2 = NAC(class_hdim, num_classes)
+
+        # self.fc_words = nn.Linear(mha_dim, 10612)
+        # self.fc2_words = nn.Linear(1, 2)
+        # self.act1_ = _get_activation_fn(class_hact)
+        # self.fc2_ = nn.Linear(class_hdim, num_classes)
 
     def _emb_sent(self, sent, sent_mask):
         sent = self.in_dr(sent)
 
+        # sent = round_act(sent)
+
         sent = sent.permute((1, 0, 2))
-        # sent = self.norm1(sent)
-        # sent = F.gelu(sent)
 
         sent = self.gtr(sent, src_key_padding_mask=sent_mask)
-        # sent_mha_gate, _ = self.mha_pool_1h(sent, sent, sent, key_padding_mask=sent_mask)
-        # sent_g = torch.sigmoid(self.sent_gate_l2(F.gelu(self.sent_gate_l1(sent_mha_gate))))
         sent = self.norm2(sent)
-        sent_ = sent
 
-        # k = F.gelu(self.q_fc(sent))
-        
-        # sent = torch.cat([sent, sent_g], dim=2)
+        # sent_shape = sent.shape
+        # sent_ = self.sent_fc(sent)
+        # sent_ = sent_.reshape((sent_shape[0], sent_shape[1], 32, 32))
+        # sent_ = torch.softmax(sent_, dim=-1)
+        # sent_ = sent_.reshape((sent_shape[0], sent_shape[1], sent_shape[2]))
 
-        # sent = torch.cat([sent, sent2, sent3], dim=2)
         sent, _ = self.mha_pool(sent, sent, sent, key_padding_mask=sent_mask)
-
-        # sent1h, _ = self.mha_pool_1h(sent, sent, sent, key_padding_mask=sent_mask)
-        # sent4h, _ = self.mha_pool_4h(sent, sent, sent, key_padding_mask=sent_mask)
-        # sent16h, _ = self.mha_pool_16h(sent, sent, sent, key_padding_mask=sent_mask)
-        # sent64h, _ = self.mha_pool_64h(sent, sent, sent, key_padding_mask=sent_mask)
-        # g1h = F.sigmoid(self.mha_pool_1h_gate(sent))
-        # g4h = F.sigmoid(self.mha_pool_4h_gate(sent))
-        # g16h = F.sigmoid(self.mha_pool_16h_gate(sent))
-        # g64h = F.sigmoid(self.mha_pool_64h_gate(sent))
-        # sent = sent + g1h*sent1h + g4h*sent4h + g16h*sent16h + g64h*sent64h
 
         sent = sent.permute((1, 0, 2))
 
         sent_mask_exp = torch.cat([sent_mask.unsqueeze(2)]*sent.shape[2], dim=2).type(torch.cuda.FloatTensor)
-        # s2v, _ = torch.max(sent + sent_mask_exp*-1e3, axis=1)
+        # s2v_max, _ = torch.max(sent + sent_mask_exp*-1e3, axis=1)
 
         s2v = torch.sum(sent*(1-sent_mask_exp), axis=1) / torch.sum((1-sent_mask_exp), axis=1)
 
+        # s2v = s2v.view(s2v.shape[0], 128, s2v.shape[1]//128)
+        # # s2v = s2v.permute((1, 0, 2))
+        # # s2v = self.tr(s2v)
+        # # s2v = s2v.permute((1, 0, 2))
+
+        # res = self.conv1(s2v.permute(1,2,0)).permute(2,0,1)
+        # s2v = s2v + res
+        # res = self.conv2(s2v.permute(1,2,0)).permute(2,0,1)
+        # s2v = s2v + res
+        # res = self.conv3(s2v.permute(1,2,0)).permute(2,0,1)
+        # s2v = s2v + res
+        # res = self.conv4(s2v.permute(1,2,0)).permute(2,0,1)
+        # s2v = s2v + res
+
+        # s2v = s2v.reshape(s2v.shape[0], s2v.shape[1]*s2v.shape[2])
+
         return s2v
 
-    def forward(self, sent1, sent2, sent1_mask=None, sent2_mask=None, test_words1=None, test_words2=None):
+    def forward(self, sent1, sent2, sent1_mask=None, sent2_mask=None):
         s2v_sent1 = self._emb_sent(sent1, sent1_mask)
         s2v_sent2 = self._emb_sent(sent2, sent2_mask)
 
         x_class_in = torch.cat((s2v_sent1, s2v_sent2, torch.abs(s2v_sent1-s2v_sent2), s2v_sent1*s2v_sent2), dim=1)
+        # x_class_in = torch.cat((s2v_sent1, s2v_sent2), dim=1)
         x_class_in = self.fc1_dr(x_class_in)
         x_class = self.fc1(x_class_in)
         x_class = self.act1(x_class)
+        # x_class = torch.cat((x_class, (s2v_sent1-s2v_sent2)**2), dim=1)
         x_class = self.fc2(x_class)
 
-        return s2v_sent1, s2v_sent2, x_class
+        # words_1 = self.fc_words(s2v_sent2)
+        # words_1 = F.relu(words_1)
+        # words_1 = torch.unsqueeze(words_1, dim=-1)
+        # words_pred = self.fc2_words(words_1)
+
+        # x_class_in = torch.cat((torch.abs(s2v_sent1-s2v_sent2), s2v_sent1*s2v_sent2), dim=1)
+        # # x_class_in = torch.cat((s2v_sent1, s2v_sent2), dim=1)
+        # x_class = self.fc1_(x_class_in)
+        # x_class = self.act1_(x_class)
+        # # x_class = torch.cat((x_class, (s2v_sent1-s2v_sent2)**2), dim=1)
+        # x_class_ = self.fc2_(x_class)
+
+        return s2v_sent1, s2v_sent2, x_class #, words_pred #, x_class_

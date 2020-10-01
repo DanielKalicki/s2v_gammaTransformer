@@ -230,7 +230,8 @@ class TransformerEncoderLayer(nn.Module):
         # g2 = torch.sigmoid(self.gate1(torch.cat((src_, src2), dim=2)))
         g2 = self.gate1(torch.cat((src_, src2), dim=2))
         g2_shape = g2.shape
-        g2 = g2.reshape((g2_shape[0], g2_shape[1], 32, 32))
+        # g2 = g2.reshape((g2_shape[0], g2_shape[1], 32, 32))
+        g2 = g2.reshape((g2_shape[0], g2_shape[1], 128, 8))
         g2 = torch.softmax(g2, dim=-1)
         g2 = g2.reshape((g2_shape[0], g2_shape[1], g2_shape[2]))
         # g2 = torch.sigmoid(self.gate1(src2 + src_))
@@ -240,7 +241,8 @@ class TransformerEncoderLayer(nn.Module):
         # g2 = torch.tanh(torch.abs(src2))
         # src2 = self.gate1_l2(self.gate1_act(self.gate1(torch.cat((src_, src2), dim=2))))
         src2 = src2 * g2
-        src = src + self.dropout1(src2)*0.25
+        # src = src + self.dropout1(src2)*0.5
+        src = src + self.dropout1(src2)
         # src = self.norm1(src)
 
         src_ = self.norm2(src)
@@ -259,7 +261,8 @@ class TransformerEncoderLayer(nn.Module):
         # g2 = torch.sigmoid(self.gate2(torch.cat((src_, src2), dim=2)))
         g2 = self.gate2(torch.cat((src_, src2), dim=2))
         g2_shape = g2.shape
-        g2 = g2.reshape((g2_shape[0], g2_shape[1], 32, 32))
+        # g2 = g2.reshape((g2_shape[0], g2_shape[1], 32, 32))
+        g2 = g2.reshape((g2_shape[0], g2_shape[1], 128, 8))
         g2 = torch.softmax(g2, dim=-1)
         g2 = g2.reshape((g2_shape[0], g2_shape[1], g2_shape[2]))
         # g2 = torch.sigmoid(self.gate2(src2 + src_))
@@ -271,7 +274,8 @@ class TransformerEncoderLayer(nn.Module):
         # src2 = self.gate2(src_)
         # g2 = self.gate2_l2(self.gate2_act(self.gate2(torch.cat((src_, src2), dim=2))))
         src2 = src2 * g2
-        src = src + self.dropout2(src2)*0.25
+        # src = src + self.dropout2(src2)*0.5
+        src = src + self.dropout2(src2)
         # src = self.norm2(src)
 
         return src
@@ -299,14 +303,6 @@ class SentenceEncoder(nn.Module):
                                                 dim_feedforward=dim_feedforward, dropout=tr_drop, activation="gelu")
         self.gtr = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
 
-        # encoder_layer_2 = TransformerEncoderLayer(d_model=32, nhead=1,
-        #                                         dim_feedforward=32, dropout=0.0, activation="gelu")
-        # self.tr = nn.TransformerEncoder(encoder_layer_2, num_layers=4)
-        # self.conv1 = nn.Conv1d(32, 32, 3, padding=1)
-        # self.conv2 = nn.Conv1d(32, 32, 3, padding=1)
-        # self.conv3 = nn.Conv1d(32, 32, 3, padding=1)
-        # self.conv4 = nn.Conv1d(32, 32, 3, padding=1)
-
         # mha pool
         mha_nhead = config['sentence_encoder']['pooling']['mha']['num_heads']
         mha_dim = config['sentence_encoder']['pooling']['mha']['inner_dim']
@@ -317,6 +313,15 @@ class SentenceEncoder(nn.Module):
         # self.sent_fc = nn.Linear(word_edim, word_edim)
         self.mha_pool = MultiheadAttention(word_edim, mha_nhead, dropout=mha_drop, out_dim_mult=out_dim_mult)
 
+        # self.conv1 = nn.Linear(word_edim, 512)
+        # self.g_conv1 = nn.Linear(word_edim, 512)
+        # self.conv3 = nn.Conv1d(word_edim, 512, 3, padding=1)
+        # self.g_conv3 = nn.Conv1d(word_edim, 512, 3, padding=1)
+        # self.conv5 = nn.Conv1d(word_edim, 512, 5, padding=2)
+        # self.g_conv5 = nn.Conv1d(word_edim, 512, 5, padding=2)
+        # self.conv7 = nn.Conv1d(word_edim, 512, 7, padding=3)
+        # self.g_conv7 = nn.Conv1d(word_edim, 512, 7, padding=3)
+
         # nli classifier
         class_dropout = config['classifier_network']['in_dropout']
         class_hdim = config['classifier_network']['hidden_dim']
@@ -325,10 +330,8 @@ class SentenceEncoder(nn.Module):
 
         self.fc1_dr = nn.Dropout(class_dropout)
         self.fc1 = nn.Linear(4*mha_dim, class_hdim)
-        # self.fc1 = NAC(4*mha_dim, class_hdim)
         self.act1 = _get_activation_fn(class_hact)
         self.fc2 = nn.Linear(class_hdim, num_classes)
-        # self.fc2 = NAC(class_hdim, num_classes)
 
         # self.fc_words = nn.Linear(mha_dim, 10612)
         # self.fc2_words = nn.Linear(1, 2)
@@ -338,43 +341,49 @@ class SentenceEncoder(nn.Module):
     def _emb_sent(self, sent, sent_mask):
         sent = self.in_dr(sent)
 
-        # sent = round_act(sent)
-
         sent = sent.permute((1, 0, 2))
 
         sent = self.gtr(sent, src_key_padding_mask=sent_mask)
         sent = self.norm2(sent)
 
-        # sent_shape = sent.shape
-        # sent_ = self.sent_fc(sent)
-        # sent_ = sent_.reshape((sent_shape[0], sent_shape[1], 32, 32))
-        # sent_ = torch.softmax(sent_, dim=-1)
-        # sent_ = sent_.reshape((sent_shape[0], sent_shape[1], sent_shape[2]))
-
         sent, _ = self.mha_pool(sent, sent, sent, key_padding_mask=sent_mask)
 
         sent = sent.permute((1, 0, 2))
 
+        # sent_mask_exp = torch.cat([sent_mask.unsqueeze(2)]*512, dim=2).type(torch.cuda.FloatTensor)
+
+        # shape = sent.shape
+
+        # sent_conv1 = self.conv1(sent)
+        # sent_gconv1 = self.g_conv1(sent)
+        # sent_gconv1 = torch.softmax(sent_gconv1.reshape(shape[0], shape[1], 16, 32), dim=-1).reshape(shape[0], shape[1], 512)
+        # sent_conv1 = sent_conv1 * sent_gconv1
+        # s2v_conv1 = torch.sum(sent_conv1*(1-sent_mask_exp), axis=1) / torch.sum((1-sent_mask_exp), axis=1)
+
+        # sent_conv3 = self.conv3(sent.permute(1,2,0)).permute(2,0,1)
+        # sent_gconv3 = self.g_conv3(sent.permute(1,2,0)).permute(2,0,1)
+        # sent_gconv3 = torch.softmax(sent_gconv3.reshape(shape[0], shape[1], 16, 32), dim=-1).reshape(shape[0], shape[1], 512)
+        # sent_conv3 = sent_conv3 * sent_gconv3
+        # s2v_conv3 = torch.sum(sent_conv3*(1-sent_mask_exp), axis=1) / torch.sum((1-sent_mask_exp), axis=1)
+
+        # sent_conv5 = self.conv5(sent.permute(1,2,0)).permute(2,0,1)
+        # sent_gconv5 = self.g_conv5(sent.permute(1,2,0)).permute(2,0,1)
+        # sent_gconv5 = torch.softmax(sent_gconv5.reshape(shape[0], shape[1], 16, 32), dim=-1).reshape(shape[0], shape[1], 512)
+        # sent_conv5 = sent_conv5 * sent_gconv5
+        # s2v_conv5 = torch.sum(sent_conv5*(1-sent_mask_exp), axis=1) / torch.sum((1-sent_mask_exp), axis=1)
+
+        # sent_conv7 = self.conv7(sent.permute(1,2,0)).permute(2,0,1)
+        # sent_gconv7 = self.g_conv7(sent.permute(1,2,0)).permute(2,0,1)
+        # sent_gconv7 = torch.softmax(sent_gconv7.reshape(shape[0], shape[1], 16, 32), dim=-1).reshape(shape[0], shape[1], 512)
+        # sent_conv7 = sent_conv7 * sent_gconv7
+        # s2v_conv7 = torch.sum(sent_conv7*(1-sent_mask_exp), axis=1) / torch.sum((1-sent_mask_exp), axis=1)
+
+        # s2v = torch.cat((s2v_conv1, s2v_conv3, s2v_conv5, s2v_conv7), dim=1)
+
         sent_mask_exp = torch.cat([sent_mask.unsqueeze(2)]*sent.shape[2], dim=2).type(torch.cuda.FloatTensor)
-        # s2v_max, _ = torch.max(sent + sent_mask_exp*-1e3, axis=1)
+        # s2v, _ = torch.max(sent + sent_mask_exp*-1e3, axis=1)
 
         s2v = torch.sum(sent*(1-sent_mask_exp), axis=1) / torch.sum((1-sent_mask_exp), axis=1)
-
-        # s2v = s2v.view(s2v.shape[0], 128, s2v.shape[1]//128)
-        # # s2v = s2v.permute((1, 0, 2))
-        # # s2v = self.tr(s2v)
-        # # s2v = s2v.permute((1, 0, 2))
-
-        # res = self.conv1(s2v.permute(1,2,0)).permute(2,0,1)
-        # s2v = s2v + res
-        # res = self.conv2(s2v.permute(1,2,0)).permute(2,0,1)
-        # s2v = s2v + res
-        # res = self.conv3(s2v.permute(1,2,0)).permute(2,0,1)
-        # s2v = s2v + res
-        # res = self.conv4(s2v.permute(1,2,0)).permute(2,0,1)
-        # s2v = s2v + res
-
-        # s2v = s2v.reshape(s2v.shape[0], s2v.shape[1]*s2v.shape[2])
 
         return s2v
 
@@ -383,23 +392,17 @@ class SentenceEncoder(nn.Module):
         s2v_sent2 = self._emb_sent(sent2, sent2_mask)
 
         x_class_in = torch.cat((s2v_sent1, s2v_sent2, torch.abs(s2v_sent1-s2v_sent2), s2v_sent1*s2v_sent2), dim=1)
-        # x_class_in = torch.cat((s2v_sent1, s2v_sent2), dim=1)
         x_class_in = self.fc1_dr(x_class_in)
         x_class = self.fc1(x_class_in)
         x_class = self.act1(x_class)
-        # x_class = torch.cat((x_class, (s2v_sent1-s2v_sent2)**2), dim=1)
+        # shape = x_class.shape
+        # x_class = torch.softmax(x_class.reshape(shape[0], 64, 8), dim=-1).reshape(shape[0], 512)
+        # x_class = torch.softmax(x_class.reshape(shape[0], 64, 8), dim=-1).reshape(shape[0], 512)
         x_class = self.fc2(x_class)
 
         # words_1 = self.fc_words(s2v_sent2)
         # words_1 = F.relu(words_1)
         # words_1 = torch.unsqueeze(words_1, dim=-1)
         # words_pred = self.fc2_words(words_1)
-
-        # x_class_in = torch.cat((torch.abs(s2v_sent1-s2v_sent2), s2v_sent1*s2v_sent2), dim=1)
-        # # x_class_in = torch.cat((s2v_sent1, s2v_sent2), dim=1)
-        # x_class = self.fc1_(x_class_in)
-        # x_class = self.act1_(x_class)
-        # # x_class = torch.cat((x_class, (s2v_sent1-s2v_sent2)**2), dim=1)
-        # x_class_ = self.fc2_(x_class)
 
         return s2v_sent1, s2v_sent2, x_class #, words_pred #, x_class_

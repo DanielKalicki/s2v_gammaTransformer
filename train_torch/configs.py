@@ -429,21 +429,24 @@ for i in range(63, 64):
         'Ffn(x,y)*y + x'
     configs[i]['sentence_encoder']['pooling']['mha']['inner_dim'] = 2*1024
     configs[i]['sentence_encoder']['transformer']['num_layers'] = 4
-    configs[i]['sentence_encoder']['transformer']['residual_dropout'] = 0.0
+    configs[i]['sentence_encoder']['transformer']['residual_dropout'] = 0.1
     configs[i]['sentence_encoder']['transformer']['ffn_dim'] = 256
     configs[i]['sentence_encoder']['transformer']['num_heads'] = 16
     configs[i]['sentence_encoder']['pooling']['mha']['num_heads'] = 128
     configs[i]['classifier_network']['in_dropout'] = 0.0
     configs[i]['max_sent_len'] = 64
     configs[i]['batch_size'] = 24
-    configs[i]['training']['optimizer'] = 'AdamW'
+    configs[i]['training']['optimizer'] = 'Adam'
     configs[i]['training']['label_smoothing'] = 0.0
     configs[i]['training']['clipnorm'] = 1.0
     configs[i]['training']['lr'] = 8e-5
-    # configs[i]['training']['lr'] = 1e-3
+    # configs[i]['training']['lr'] = 1e-6
     configs[i]['training']['pretrain'] = False
-    configs[i]['name'] = 'bL24_sl64_CeLoss_4xTrPreNormGelu_Dr.0_SubLay.25_Mha16GeluDense_Ffnd4_Softmax32(x,y)*y+x_' + \
-        '_Mha128hPool_MeanPoolMask_2*1024d_Snli_AdamLr8e-5dec.94_labelSmoothing.2_TBatchd4_'+str(i)
+    configs[i]['name'] = 'bL24_sl64_CeLoss_4xTrPreNormGelu_Dr.1_Mha16GeluDense_Ffnd4_Softmax8(x,y)*y+x_' + \
+        '_Mha128hPool_MeanPoolMask_2*1024d_Snli_AdamLr8e-5dec.95epoch15x3_labelSmoothing.2_TBatchd1_v2_'+str(i)
+    # configs[i]['name'] = 'bL24_sl64_CeLoss_4xTrPreNormGelu_Dr.1_SubLay.5_Mha16GeluDense_Ffnd4_Softmax32(x,y)*y+x_' + \
+        # '_Mha128hPool_MeanPoolMask_2*1024d_Snli_AdamLr1e-6_labelSmoothing.2_TBatchd2_v2_restore_'+str(i)
+        # '_gSofConvPool_MeanPoolMask_2*1024d_Snli_AdamLr8e-5dec.94_labelSmoothing.2_TBatchd4_'+str(i)
         # '_Mha128hPool_MeanPoolMask_2048d_Snli_AdamWdec.1Lr8e-5dec.92_labelSmoothing.2_'+str(i)
         # '_Mha128hPool_MeanPoolMask_4096d_Snli_Sgd1e-3_rndBatch_labelSmoothing.2_restore_'+str(i)
         # '_Mha128hPool_MeanPoolMask_4096d_Snli_AdamWdec.1Lr8e-5dec0.92_labelSmoothing.2_restore_'+str(i)

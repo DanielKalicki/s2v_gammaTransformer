@@ -146,7 +146,8 @@ class AnliBatch(Dataset):
         if self.valid:
             return len(batch_valid_data)
         else:
-            return int(len(batch_train_data)/4)
+            # return int(len(batch_train_data)/1)
+            return int(len(batch_train_data))
 
     def __getitem__(self, idx):
         """

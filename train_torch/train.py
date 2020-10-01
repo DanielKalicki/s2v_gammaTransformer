@@ -213,7 +213,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # model
 model = SentenceEncoder(config)
-# restore_name = 'bL24_sl64_CeLoss_6xTrPreNormGelu_Dr.1_SubLay.25_Mha16GeluDense_Ffnd4_W(x,y)*y+x__Mha128hPool_MeanPoolMask_4096d_Anli_AdamWdec.1Lr8e-5dec0.92_labelSmoothing.2_63'
+# restore_name = 'bL24_sl64_CeLoss_4xTrPreNormGelu_Dr.1_SubLay.25_Mha16GeluDense_Ffnd4_Softmax32(x,y)*y+x__Mha128hPool_MeanPoolMask_2*1024d_Anli_AdamLr8e-5dec.95_labelSmoothing.2_TBatchd2_v2_63'
 # checkpoint = torch.load('./train_torch/save/'+restore_name)
 # model.load_state_dict(checkpoint['model_state_dict'])
 print(model)
@@ -248,8 +248,8 @@ data_loader_test = torch.utils.data.DataLoader(
 optimizer = optim.Adam(model.parameters(), lr=config['training']['lr'])
 # optimizer = optim.SGD(model.parameters(), lr=config['training']['lr'], momentum=0.9)
 # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.92)
-# lr_lambda = lambda epoch: (0.94 ** (epoch + max(0, epoch-40)))
-lr_lambda = lambda epoch: 0.985 ** epoch
+lr_lambda = lambda epoch: (0.95 ** (epoch + 2*max(0, epoch-15)))
+# lr_lambda = lambda epoch: 0.95 ** epoch
 # lr_lambda = lambda epoch: 1.0
 scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
 # scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, 1e-6, 2e-4, step_size_up=200, mode='triangular', gamma=1.0, cycle_momentum=False)

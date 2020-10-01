@@ -66,7 +66,6 @@ class AutoencoderBatch(Dataset):
                                   dtype=torch.float)
         words_labels = torch.zeros((2, self.config['max_sent_len'], 2), dtype=torch.float)
 
-
         batch_dataset = batch_valid_data if self.valid else batch_train_data
 
         for s_idx in range(2):

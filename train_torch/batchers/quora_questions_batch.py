@@ -12,14 +12,15 @@ from flair.data import Sentence
 batch_train_data = []
 batch_valid_data = []
 
-class ZeroShotReBatch(Dataset):
+class QuoraQuestionsBatch(Dataset):
     def __init__(self, config, valid=False):
         self.config = config
         self.valid = valid
 
-        self.datasets_dir = "./datasets/relation_splits/"
-        self.batch_dir = './train_torch/datasets/zero_shot_re/'
+        self.datasets_dir = "./datasets/quora_questions/"
+        self.batch_dir = './train_torch/datasets/quora_questions/'
         # self._create_batch_file()
+        # exit(0)
 
         self.train_batch_part = -1
         self.valid_batch_part = -1
@@ -38,9 +39,6 @@ class ZeroShotReBatch(Dataset):
         self._process_datasets()
 
     def _process_datasets(self):
-        test_lines = set()
-        train_lines = set()
-
         dataset_files = os.listdir(self.datasets_dir)
         for file in dataset_files:
             if ("train" in file) or ("test" in file):
@@ -49,46 +47,38 @@ class ZeroShotReBatch(Dataset):
                 with open(self.datasets_dir + file, "r") as f:
                     processed_dataset = []
                     part = 0
+                    first_line = True
                     for line in tqdm(f, total=num_lines):
-                        if 'test' in file:
-                            test_lines.add(line)
-                        elif 'train' in file:
-                            train_lines.add(line)
-                            
-        for file in ['train', 'test']:
-            file = 'test'
-            lines = train_lines if file == 'train' else test_lines
-            processed_dataset = []
-            for line in tqdm(lines, total=len(lines)):
-                data = line.strip().split("\t")
-                if (len(data) >= 5) or True:
-                    question_type = data[0]
-                    question = data[1].replace("XXX", data[2])
-                    sentence = data[3]
-                    answers = data[4:]
-                    if len(sentence.split(" ")) < 100:
-                        sents_emb, words = self._process_sentences(
-                                    [question, sentence])
-                        batch = {
-                            'question_type': question_type,
-                            'question': question,
-                            'question_emb': sents_emb[0],
-                            'question_words': words[0],
-                            'sentence': sentence,
-                            'sentence_emb': sents_emb[1],
-                            'sentence_words': words[1],
-                            'answers': answers
-                        }
-                        processed_dataset.append(batch)
-                        if len(processed_dataset) >= 20000:
-                            pickle.dump(processed_dataset, open(self.batch_dir + file + '_' + str(part) + '.pickle', 'wb'))
-                            print(part)
-                            processed_dataset = []
-                            part += 1
-                    else:
-                        print(sentence)
-            if len(processed_dataset) > 0:
-                pickle.dump(processed_dataset, open(self.batch_dir + file + '_' + str(part) + '.pickle', 'wb'))
+                        if first_line:
+                            first_line = False
+                            continue
+                        data = line.strip().split("\t")
+                        sent1 = data[2]
+                        sent2 = data[3]
+                        label = data[4]
+                        if (len(sent1.split(" ")) < 100) and (len(sent2.split(" ")) < 100):
+                            sents_emb, words = self._process_sentences([sent1, sent2])
+                            batch = {
+                                'sent1': sent1,
+                                'sent1_emb': sents_emb[0],
+                                'sent1_words': words[0],
+                                'sent2': sent2,
+                                'sent2_emb': sents_emb[1],
+                                'sent2_words': words[1],
+                                'label': label
+                            }
+                            processed_dataset.append(batch)
+                            if len(processed_dataset) >= 50000:
+                                pickle.dump(processed_dataset, open(self.batch_dir + file + '_' + str(part) + '.pickle', 'wb'))
+                                print(part)
+                                processed_dataset = []
+                                part += 1
+                        else:
+                            print(sent1)
+                            print(sent2)
+                            print("--------")
+                    if len(processed_dataset) > 0:
+                        pickle.dump(processed_dataset, open(self.batch_dir + file + '_' + str(part) + '.pickle', 'wb'))
 
     def _process_sentences(self, sentences):
         sentences_emb = []
@@ -145,11 +135,6 @@ class ZeroShotReBatch(Dataset):
             if self.valid_batch_part >= len(test_files_list):
                 self.valid_batch_part = 0
 
-            # batch_valid_data = []
-            # batch_valid_data.extend(pickle.load(
-            #     open(self.batch_dir + test_files_list[self.valid_batch_part], 'rb')))
-            # print(test_files_list[self.valid_batch_part])
-
             if len(batch_valid_data) == 0:
                 for self.valid_batch_part in range(0, len(test_files_list)-1):
                     batch_valid_data.extend(pickle.load(
@@ -166,7 +151,7 @@ class ZeroShotReBatch(Dataset):
         if self.valid:
             return int(len(batch_valid_data)//10)
         else:
-            return int(len(batch_train_data))
+            return int(len(batch_train_data)//2)
 
     def __getitem__(self, idx):
         """
@@ -187,29 +172,27 @@ class ZeroShotReBatch(Dataset):
 
         batch_dataset = batch_valid_data if self.valid else batch_train_data
 
-        sent1 = batch_dataset[idx]['question_emb']
-        sent2 = batch_dataset[idx]['sentence_emb']
+        sent1 = batch_dataset[idx]['sent1_emb']
+        sent2 = batch_dataset[idx]['sent2_emb']
 
         sentence1[0:min(len(sent1), self.config['max_sent_len'])] =\
             torch.from_numpy(sent1[0:min(len(sent1), self.config['max_sent_len'])].astype(np.float32))
         sentence1_mask[0:min(len(sent1), self.config['max_sent_len'])] = torch.tensor(0.0)
-        # sentence1_mask[0:min(int(math.ceil(len(sent1)/2)), self.config['max_sent_len'])] = torch.tensor(0.0)
 
         sentence2[0:min(len(sent2), self.config['max_sent_len'])] =\
             torch.from_numpy(sent2[0:min(len(sent2), self.config['max_sent_len'])].astype(np.float32))
         sentence2_mask[0:min(len(sent2), self.config['max_sent_len'])] = torch.tensor(0.0)
-        # sentence2_mask[0:min(int(math.ceil(len(sent2)/2)), self.config['max_sent_len'])] = torch.tensor(0.0)
 
         if not self.valid:
             sentence1 = sentence1 + torch.mean(sentence1)*torch.randn_like(sentence1)*0.1
             sentence2 = sentence2 + torch.mean(sentence2)*torch.randn_like(sentence2)*0.1
 
-        label = 1 if len(batch_dataset[idx]['answers']) > 0 else 0
+        label = int(batch_dataset[idx]['label'])
 
         return sentence1, sentence1_mask, sentence2, sentence2_mask, label
 
 def test():
-    batcher = ZeroShotReBatch({
+    batcher = QuoraQuestionsBatch({
         'batch_size': 2,
         'max_sent_cnt': 6,
         'max_sent_len': 64,

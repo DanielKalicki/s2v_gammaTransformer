@@ -9,6 +9,7 @@ import torch
 from torch.utils.data import Dataset
 import json
 import re
+import math
 # from flair.embeddings import RoBERTaEmbeddings
 # from flair.data import Sentence
 
@@ -125,6 +126,9 @@ class AnliBatch(Dataset):
             # random.shuffle(mnli_train_files_list)
             batch_train_data = []
 
+            print(snli_train_files_list[self.snli_train_batch_part])
+            print(mnli_train_files_list[self.mnli_train_batch_part])
+
             batch_train_data.extend(pickle.load(
                 open(self.batch_dir + snli_train_files_list[self.snli_train_batch_part], 'rb')))
             batch_train_data.extend(pickle.load(
@@ -136,6 +140,7 @@ class AnliBatch(Dataset):
                 batch_valid_data.extend(pickle.load(
                     open(self.batch_dir + mnli_test_file_list[0], 'rb')))
             random.shuffle(batch_train_data)
+            random.shuffle(batch_valid_data)
 
     def on_epoch_end(self):
         self._init_batch()
@@ -181,10 +186,12 @@ class AnliBatch(Dataset):
         sentence1[0:min(len(sent1), self.config['max_sent_len'])] =\
             torch.from_numpy(sent1[0:min(len(sent1), self.config['max_sent_len'])].astype(np.float32))
         sentence1_mask[0:min(len(sent1), self.config['max_sent_len'])] = torch.tensor(0.0)
+        # sentence1_mask[0:min(int(math.ceil(len(sent1)/2)), self.config['max_sent_len'])] = torch.tensor(0.0)
 
         sentence2[0:min(len(sent2), self.config['max_sent_len'])] =\
             torch.from_numpy(sent2[0:min(len(sent2), self.config['max_sent_len'])].astype(np.float32))
         sentence2_mask[0:min(len(sent2), self.config['max_sent_len'])] = torch.tensor(0.0)
+        # sentence2_mask[0:min(int(math.ceil(len(sent2)/2)), self.config['max_sent_len'])] = torch.tensor(0.0)
 
         # for word_idx in range(len(self.word_list)):
         #     sent2_words[word_idx][0] = True
@@ -198,6 +205,10 @@ class AnliBatch(Dataset):
         #     sentence1[word_to_drop] = torch.zeros((self.config['word_edim'],), dtype=torch.float)
         #     word_to_drop = random.randint(0, min(len(sent2), self.config['max_sent_len'])-1)
         #     sentence2[word_to_drop] = torch.zeros((self.config['word_edim'],), dtype=torch.float)
+
+        if not self.valid:
+            sentence1 = sentence1 + torch.mean(sentence1)*torch.randn_like(sentence1)*0.1
+            sentence2 = sentence2 + torch.mean(sentence2)*torch.randn_like(sentence2)*0.1
 
         label = nli_label
 

@@ -427,6 +427,7 @@ for i in range(63, 64):
     configs[i]['sentence_encoder']['input_drop'] = 0.0
     configs[i]['sentence_encoder']['transformer']['gate_type'] = \
         'Ffn(x,y)*y + x'
+    # configs[i]['word_edim'] = 2048
     configs[i]['sentence_encoder']['pooling']['mha']['inner_dim'] = 2*1024
     configs[i]['sentence_encoder']['transformer']['num_layers'] = 4
     configs[i]['sentence_encoder']['transformer']['residual_dropout'] = 0.1
@@ -439,11 +440,12 @@ for i in range(63, 64):
     configs[i]['training']['optimizer'] = 'Adam'
     configs[i]['training']['label_smoothing'] = 0.0
     configs[i]['training']['clipnorm'] = 1.0
-    configs[i]['training']['lr'] = 8e-5
-    # configs[i]['training']['lr'] = 1e-6
-    configs[i]['training']['pretrain'] = False
-    configs[i]['name'] = 'bL24_sl64_CeLoss_4xTrPreNormGelu_Dr.1_Mha16GeluDense_Ffnd4_Softmax8(x,y)*y+x_' + \
-        '_Mha128hPool_MeanPoolMask_2*1024d_Snli_AdamLr8e-5dec.95epoch15x3_labelSmoothing.2_TBatchd1_v2_'+str(i)
+    configs[i]['training']['lr'] = 1e-4
+    configs[i]['training']['pretrain'] = True
+    configs[i]['name'] = 'bL24_sl64_ZsQqAnli_CeLoss_4xTrPreNormGelu_dr.1_Mha16GeluDense_Ffnd4_Softmax8(x,y)*y+x_' + \
+        '_Mha128hPool_MeanPoolMask_s2vNoise.1_2*1024d_RangerLr1e-4_labelSmoothing.2_'+str(i)
+        # '_Mha128hPool_MeanPoolMask_2*1024d_x,y,Abs(xy)_AdamLr1e-4dec.95epoch15x3_labelSmoothing.2_'+str(i)
+        # '_Mha128hPool_MeanPoolMask_2*1024d_Snli_AdamLr8e-5dec.95epoch15x3_labelSmoothing.2_TBatchd1_v2_'+str(i)
     # configs[i]['name'] = 'bL24_sl64_CeLoss_4xTrPreNormGelu_Dr.1_SubLay.5_Mha16GeluDense_Ffnd4_Softmax32(x,y)*y+x_' + \
         # '_Mha128hPool_MeanPoolMask_2*1024d_Snli_AdamLr1e-6_labelSmoothing.2_TBatchd2_v2_restore_'+str(i)
         # '_gSofConvPool_MeanPoolMask_2*1024d_Snli_AdamLr8e-5dec.94_labelSmoothing.2_TBatchd4_'+str(i)

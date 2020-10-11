@@ -126,6 +126,7 @@ class QuoraQuestionsBatch(Dataset):
 
             # TODO remove long sentences?
 
+            print("quora questions batcher")
             batch_train_data = []
             batch_train_data.extend(pickle.load(
                 open(self.batch_dir + train_files_list[self.train_batch_part], 'rb')))
@@ -183,9 +184,9 @@ class QuoraQuestionsBatch(Dataset):
             torch.from_numpy(sent2[0:min(len(sent2), self.config['max_sent_len'])].astype(np.float32))
         sentence2_mask[0:min(len(sent2), self.config['max_sent_len'])] = torch.tensor(0.0)
 
-        if not self.valid:
-            sentence1 = sentence1 + torch.mean(sentence1)*torch.randn_like(sentence1)*0.1
-            sentence2 = sentence2 + torch.mean(sentence2)*torch.randn_like(sentence2)*0.1
+        # if not self.valid:
+        #     sentence1 = sentence1 + torch.mean(sentence1)*torch.randn_like(sentence1)*0.1
+        #     sentence2 = sentence2 + torch.mean(sentence2)*torch.randn_like(sentence2)*0.1
 
         label = int(batch_dataset[idx]['label'])
 

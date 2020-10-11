@@ -126,6 +126,7 @@ class AnliBatch(Dataset):
             # random.shuffle(mnli_train_files_list)
             batch_train_data = []
 
+            print("anli batcher")
             print(snli_train_files_list[self.snli_train_batch_part])
             print(mnli_train_files_list[self.mnli_train_batch_part])
 
@@ -206,9 +207,9 @@ class AnliBatch(Dataset):
         #     word_to_drop = random.randint(0, min(len(sent2), self.config['max_sent_len'])-1)
         #     sentence2[word_to_drop] = torch.zeros((self.config['word_edim'],), dtype=torch.float)
 
-        if not self.valid:
-            sentence1 = sentence1 + torch.mean(sentence1)*torch.randn_like(sentence1)*0.1
-            sentence2 = sentence2 + torch.mean(sentence2)*torch.randn_like(sentence2)*0.1
+        # if not self.valid:
+        #     sentence1 = sentence1 + torch.mean(sentence1)*torch.randn_like(sentence1)*0.1
+        #     sentence2 = sentence2 + torch.mean(sentence2)*torch.randn_like(sentence2)*0.1
 
         label = nli_label
 

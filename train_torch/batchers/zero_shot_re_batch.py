@@ -48,7 +48,6 @@ class ZeroShotReBatch(Dataset):
                 num_lines = sum(1 for line in open(self.datasets_dir + file, 'r'))
                 with open(self.datasets_dir + file, "r") as f:
                     processed_dataset = []
-                    part = 0
                     for line in tqdm(f, total=num_lines):
                         if 'test' in file:
                             test_lines.add(line)
@@ -56,6 +55,7 @@ class ZeroShotReBatch(Dataset):
                             train_lines.add(line)
                             
         for file in ['train', 'test']:
+            part = 0
             file = 'test'
             lines = train_lines if file == 'train' else test_lines
             processed_dataset = []
@@ -130,25 +130,18 @@ class ZeroShotReBatch(Dataset):
                 elif 'test' in batch:
                     test_files_list.append(batch)
 
-            self.train_batch_part += 1
-            if self.train_batch_part >= len(train_files_list):
-                self.train_batch_part = 0
-
-            # TODO remove long sentences?
-
+            print("zero shot re batcher")
             batch_train_data = []
-            batch_train_data.extend(pickle.load(
-                open(self.batch_dir + train_files_list[self.train_batch_part], 'rb')))
-            print(train_files_list[self.train_batch_part])
+            for _ in range(2):
+                self.train_batch_part += 1
+                if self.train_batch_part >= len(train_files_list):
+                    self.train_batch_part = 0
 
-            self.valid_batch_part += 1
-            if self.valid_batch_part >= len(test_files_list):
-                self.valid_batch_part = 0
+                # TODO remove long sentences?
 
-            # batch_valid_data = []
-            # batch_valid_data.extend(pickle.load(
-            #     open(self.batch_dir + test_files_list[self.valid_batch_part], 'rb')))
-            # print(test_files_list[self.valid_batch_part])
+                batch_train_data.extend(pickle.load(
+                    open(self.batch_dir + train_files_list[self.train_batch_part], 'rb')))
+                print(train_files_list[self.train_batch_part])
 
             if len(batch_valid_data) == 0:
                 for self.valid_batch_part in range(0, len(test_files_list)-1):
@@ -166,7 +159,7 @@ class ZeroShotReBatch(Dataset):
         if self.valid:
             return int(len(batch_valid_data)//10)
         else:
-            return int(len(batch_train_data))
+            return int(len(batch_train_data)*.75)
 
     def __getitem__(self, idx):
         """
@@ -200,9 +193,9 @@ class ZeroShotReBatch(Dataset):
         sentence2_mask[0:min(len(sent2), self.config['max_sent_len'])] = torch.tensor(0.0)
         # sentence2_mask[0:min(int(math.ceil(len(sent2)/2)), self.config['max_sent_len'])] = torch.tensor(0.0)
 
-        if not self.valid:
-            sentence1 = sentence1 + torch.mean(sentence1)*torch.randn_like(sentence1)*0.1
-            sentence2 = sentence2 + torch.mean(sentence2)*torch.randn_like(sentence2)*0.1
+        # if not self.valid:
+        #     sentence1 = sentence1 + torch.mean(sentence1)*torch.randn_like(sentence1)*0.1
+        #     sentence2 = sentence2 + torch.mean(sentence2)*torch.randn_like(sentence2)*0.1
 
         label = 1 if len(batch_dataset[idx]['answers']) > 0 else 0
 

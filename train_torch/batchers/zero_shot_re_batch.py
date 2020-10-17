@@ -95,7 +95,7 @@ class ZeroShotReBatch(Dataset):
         words = []
         for sentence in sentences:
             sentence = " ".join(sentence.split())
-            sent = sentence
+            sent = sentence.strip()
             if len(sent.strip()) == 0:
                 sent = 'empty'
             try:
@@ -144,7 +144,7 @@ class ZeroShotReBatch(Dataset):
                 print(train_files_list[self.train_batch_part])
 
             if len(batch_valid_data) == 0:
-                for self.valid_batch_part in range(0, len(test_files_list)-1):
+                for self.valid_batch_part in range(0, len(test_files_list)):
                     batch_valid_data.extend(pickle.load(
                         open(self.batch_dir + test_files_list[self.valid_batch_part], 'rb')))
                     print(test_files_list[self.valid_batch_part])

@@ -29,11 +29,10 @@ class AnliBatch(Dataset):
         self.batch_dir = './train_torch/datasets/'
         self.labels = ['contradiction', 'neutral', 'entailment']
 
-        self.word_list = self._load_word_list()
-        self.word_dict = {}
-        for widx, word in enumerate(self.word_list):
-            self.word_dict[word] = widx
-        print(len(self.word_list))
+        # self.word_list = self._load_word_list()
+        # self.word_dict = {}
+        # for widx, word in enumerate(self.word_list):
+        #     self.word_dict[word] = widx
 
         # self.train_batch_part = -1
         self.snli_train_batch_part = -1
@@ -173,7 +172,7 @@ class AnliBatch(Dataset):
         sentence2_mask = torch.ones((self.config['max_sent_len'],),
                                     dtype=torch.bool)
         label = torch.zeros((1,), dtype=torch.long)
-        sent2_words = torch.zeros((len(self.word_list), 2), dtype=torch.float)
+        # sent2_words = torch.zeros((len(self.word_list), 2), dtype=torch.float)
 
         batch_dataset = batch_valid_data if self.valid else batch_train_data
 
@@ -187,25 +186,10 @@ class AnliBatch(Dataset):
         sentence1[0:min(len(sent1), self.config['max_sent_len'])] =\
             torch.from_numpy(sent1[0:min(len(sent1), self.config['max_sent_len'])].astype(np.float32))
         sentence1_mask[0:min(len(sent1), self.config['max_sent_len'])] = torch.tensor(0.0)
-        # sentence1_mask[0:min(int(math.ceil(len(sent1)/2)), self.config['max_sent_len'])] = torch.tensor(0.0)
 
         sentence2[0:min(len(sent2), self.config['max_sent_len'])] =\
             torch.from_numpy(sent2[0:min(len(sent2), self.config['max_sent_len'])].astype(np.float32))
         sentence2_mask[0:min(len(sent2), self.config['max_sent_len'])] = torch.tensor(0.0)
-        # sentence2_mask[0:min(int(math.ceil(len(sent2)/2)), self.config['max_sent_len'])] = torch.tensor(0.0)
-
-        # for word_idx in range(len(self.word_list)):
-        #     sent2_words[word_idx][0] = True
-        # for word in batch_dataset[idx]['sentences_words'][1]:
-        #     word_ = self._process_word(word)
-        #     if word_ in self.word_dict:
-        #         sent2_words[self.word_dict[word_]][1] = True
-
-        # if not self.valid:
-        #     word_to_drop = random.randint(0, min(len(sent1), self.config['max_sent_len'])-1)
-        #     sentence1[word_to_drop] = torch.zeros((self.config['word_edim'],), dtype=torch.float)
-        #     word_to_drop = random.randint(0, min(len(sent2), self.config['max_sent_len'])-1)
-        #     sentence2[word_to_drop] = torch.zeros((self.config['word_edim'],), dtype=torch.float)
 
         # if not self.valid:
         #     sentence1 = sentence1 + torch.mean(sentence1)*torch.randn_like(sentence1)*0.1
@@ -213,7 +197,7 @@ class AnliBatch(Dataset):
 
         label = nli_label
 
-        return sentence1, sentence1_mask, sentence2, sentence2_mask, label, sent2_words
+        return sentence1, sentence1_mask, sentence2, sentence2_mask, label #, sent2_words
 
 def test():
     batcher = AnliBatch({

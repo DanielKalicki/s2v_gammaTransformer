@@ -79,7 +79,7 @@ class PawsBatch(Dataset):
         words = []
         for sentence in sentences:
             sentence = " ".join(sentence.split())
-            sent = sentence
+            sent = sentence.strip()
             if len(sent.strip()) == 0:
                 sent = 'empty'
             try:

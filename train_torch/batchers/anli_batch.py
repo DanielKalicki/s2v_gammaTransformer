@@ -126,8 +126,8 @@ class AnliBatch(Dataset):
             batch_train_data = []
 
             print("anli batcher")
-            print(snli_train_files_list[self.snli_train_batch_part])
-            print(mnli_train_files_list[self.mnli_train_batch_part])
+            print('\t', snli_train_files_list[self.snli_train_batch_part])
+            print('\t', mnli_train_files_list[self.mnli_train_batch_part])
 
             batch_train_data.extend(pickle.load(
                 open(self.batch_dir + snli_train_files_list[self.snli_train_batch_part], 'rb')))
@@ -151,7 +151,6 @@ class AnliBatch(Dataset):
         if self.valid:
             return len(batch_valid_data)
         else:
-            # return int(len(batch_train_data)/1)
             return int(len(batch_train_data))
 
     def __getitem__(self, idx):
@@ -172,12 +171,13 @@ class AnliBatch(Dataset):
         sentence2_mask = torch.ones((self.config['max_sent_len'],),
                                     dtype=torch.bool)
         label = torch.zeros((1,), dtype=torch.long)
-        # sent2_words = torch.zeros((len(self.word_list), 2), dtype=torch.float)
+
+        # sentence1w = torch.zeros((self.config['max_sent_len'], self.config['max_chars_num'], self.config['char_edim']),
+        #                          dtype=torch.float)
+        # sentence2w = torch.zeros((self.config['max_sent_len'], self.config['max_chars_num'], self.config['char_edim']),
+        #                          dtype=torch.float)
 
         batch_dataset = batch_valid_data if self.valid else batch_train_data
-
-        # if not self.valid:
-            # idx = random.randint(0, len(batch_dataset)-1)
 
         sent1 = batch_dataset[idx]['sentences_emb'][0]
         sent2 = batch_dataset[idx]['sentences_emb'][1]
@@ -191,13 +191,58 @@ class AnliBatch(Dataset):
             torch.from_numpy(sent2[0:min(len(sent2), self.config['max_sent_len'])].astype(np.float32))
         sentence2_mask[0:min(len(sent2), self.config['max_sent_len'])] = torch.tensor(0.0)
 
+        # t_idx = 0
+        # for token in batch_dataset[idx]['sentences_words'][0]:
+        #     c_idx = 0
+        #     for character in token:
+        #         try:
+        #             char_ = ord(character.upper())
+        #             if char_ < ord("!"):
+        #                 continue
+        #             elif char_ > ord("`"):
+        #                 continue
+        #             else:
+        #                 sentence1w[t_idx, c_idx][char_-ord("!")] = torch.tensor(1.0)
+        #         except:
+        #             print(character)
+        #             pass
+        #         c_idx += 1
+        #         if c_idx >= self.config['max_chars_num']:
+        #             break
+        #     t_idx += 1
+        #     if t_idx >= self.config['max_sent_len']:
+        #         break
+
+        # t_idx = 0
+        # for token in batch_dataset[idx]['sentences_words'][1]:
+        #     c_idx = 0
+        #     for character in token:
+        #         try:
+        #             char_ = ord(character.upper())
+        #             if char_ < ord("!"):
+        #                 continue
+        #             elif char_ > ord("`"):
+        #                 continue
+        #             else:
+        #                 sentence2w[t_idx, c_idx][char_-ord("!")] = torch.tensor(1.0)
+        #         except:
+        #             print(character)
+        #             pass
+        #         c_idx += 1
+        #         if c_idx >= self.config['max_chars_num']:
+        #             break
+        #     t_idx += 1
+        #     if t_idx >= self.config['max_sent_len']:
+        #         break
+
+
         # if not self.valid:
         #     sentence1 = sentence1 + torch.mean(sentence1)*torch.randn_like(sentence1)*0.1
         #     sentence2 = sentence2 + torch.mean(sentence2)*torch.randn_like(sentence2)*0.1
 
         label = nli_label
 
-        return sentence1, sentence1_mask, sentence2, sentence2_mask, label #, sent2_words
+        return sentence1, sentence1_mask, sentence2, sentence2_mask, label #, sentence1w, sentence2w 
 
 def test():
     batcher = AnliBatch({

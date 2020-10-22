@@ -130,7 +130,7 @@ class QuoraQuestionsBatch(Dataset):
             batch_train_data = []
             batch_train_data.extend(pickle.load(
                 open(self.batch_dir + train_files_list[self.train_batch_part], 'rb')))
-            print(train_files_list[self.train_batch_part])
+            print('\t', train_files_list[self.train_batch_part])
 
             self.valid_batch_part += 1
             if self.valid_batch_part >= len(test_files_list):
@@ -140,7 +140,7 @@ class QuoraQuestionsBatch(Dataset):
                 for self.valid_batch_part in range(0, len(test_files_list)):
                     batch_valid_data.extend(pickle.load(
                         open(self.batch_dir + test_files_list[self.valid_batch_part], 'rb')))
-                    print(test_files_list[self.valid_batch_part])
+                    print('\t', test_files_list[self.valid_batch_part])
             random.shuffle(batch_train_data)
             random.shuffle(batch_valid_data)
 
